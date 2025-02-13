@@ -1,16 +1,16 @@
 const { app, BrowserWindow, ipcMain } = require('electron');
 const { spawn } = require('child_process');
 const path = require('path');
+const fs = require('fs');
 
 function createWindow() {
     const win = new BrowserWindow({
-        width: 800,
-        height: 600,
+        width: 1000,
+        height: 700,
         webPreferences: {
-            // Renderer에서 Node.js API 사용 가능 여부
             nodeIntegration: false,
             contextIsolation: true,
-            preload: path.join(__dirname, 'preload.js') // 권장
+            preload: path.join(__dirname, 'preload.js'),
         },
     });
 
@@ -57,4 +57,34 @@ ipcMain.handle('run-command', async (event, command, args) => {
             reject(err);
         });
     });
+});
+
+// config.json 경로
+const configPath = path.join(__dirname, 'config.json');
+
+// config.json 읽기
+ipcMain.handle('load-config', async () => {
+    if (!fs.existsSync(configPath)) {
+        // 파일이 없으면 빈 배열(혹은 원하는 초기값)을 반환
+        return [];
+    }
+    // 파일이 있으면 내용 파싱 후 반환
+    const data = fs.readFileSync(configPath, 'utf-8');
+    try {
+        return JSON.parse(data);
+    } catch (err) {
+        console.error("config.json 파싱 에러:", err);
+        return [];
+    }
+});
+
+// config.json 저장
+ipcMain.handle('save-config', async (event, configData) => {
+    try {
+        fs.writeFileSync(configPath, JSON.stringify(configData, null, 2), 'utf-8');
+        return true;
+    } catch (err) {
+        console.error("config.json 저장 에러:", err);
+        throw err;
+    }
 });

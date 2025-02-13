@@ -1,7 +1,7 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('electronAPI', {
-    runCommand: async (cmd, args = []) => {
-        return ipcRenderer.invoke('run-command', cmd, args);
-    }
+    runCommand: (cmd, args = []) => ipcRenderer.invoke('run-command', cmd, args),
+    loadConfig: () => ipcRenderer.invoke('load-config'),
+    saveConfig: (data) => ipcRenderer.invoke('save-config', data),
 });
