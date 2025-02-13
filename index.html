@@ -148,6 +148,7 @@
         <div class="sidebar">
             <button id="btnMain">메인</button>
             <button id="btnSettings">설정</button>
+            <button id="btnResults">결과</button>
         </div>
 
         <!-- 오른쪽 컨텐츠 영역 -->
@@ -197,6 +198,12 @@
                 <button id="saveBtn">저장</button>
                 <button id="resetBtn">초기화</button>
             </div>
+
+            <!-- 결과 탭 내용 -->
+            <div id="resultsTab" class="tab-content">
+                <h1>결과</h1>
+                <pre id="output_ret"></pre>
+            </div>
         </div>
     </div>
 
@@ -204,18 +211,29 @@
         // 탭 전환 로직
         const btnMain = document.getElementById("btnMain");
         const btnSettings = document.getElementById("btnSettings");
+        const btnResults = document.getElementById("btnResults");
         const mainTab = document.getElementById("mainTab");
         const settingsTab = document.getElementById("settingsTab");
+        const resultsTab = document.getElementById("resultsTab");
 
         btnMain.addEventListener("click", () => {
             mainTab.classList.add("active");
             settingsTab.classList.remove("active");
+            resultsTab.classList.remove("active");
         });
         btnSettings.addEventListener("click", async () => {
             mainTab.classList.remove("active");
             settingsTab.classList.add("active");
+            resultsTab.classList.remove("active");
             // 설정 탭 들어갈 때마다 config.json 불러오기
             await loadConfig();
+        });
+        btnResults.addEventListener("click", async () => {
+            mainTab.classList.remove("active");
+            settingsTab.classList.remove("active");
+            resultsTab.classList.add("active");
+            // 결과 탭 들어갈 때마다 결과 불러오기
+            await loadResults();
         });
 
         // ---------------------
@@ -225,26 +243,44 @@
         const cmdInput = document.getElementById('command');
         const argsInput = document.getElementById('args');
         const outputArea = document.getElementById('output');
+        const outputRetArea = document.getElementById('output_ret');
+
+        // =============== 실시간 로그를 뿌릴 이벤트 연결 ===============
+        // main -> renderer 통신
+        window.electronAPI.onCommandStdout((data) => {
+            outputArea.textContent += data;  // 그냥 이어붙이면 됨
+        });
+
+        window.electronAPI.onCommandStderr((data) => {
+            // outputArea.textContent += '[ERR] ' + data; // 현재는 에러는 표시 안함
+        });
+
+        window.electronAPI.onCommandClose((code) => {
+            outputArea.textContent += `\n--- Process exited with code: ${code} ---\n`;
+        });
+
+        window.electronAPI.onCommandError((errMsg) => {
+            outputArea.textContent += `[ERROR] ${errMsg}\n`;
+        });
+        // ============================================================
 
         runBtn.addEventListener('click', async () => {
             const cmd = cmdInput.value.trim();
+            // 공백으로 구분된 인자를 배열로
             const args = argsInput.value.trim().split(' ');
 
             outputArea.textContent = 'Running command...\n';
 
             try {
+                // 프로세스 시작
                 const result = await window.electronAPI.runCommand(cmd, args);
-                outputArea.textContent += `Exit code: ${result.code}\n`;
-                if (result.stdout) {
-                    outputArea.textContent += `\n--- STDOUT ---\n${result.stdout}\n`;
-                }
-                if (result.stderr) {
-                    outputArea.textContent += `\n--- STDERR ---\n${result.stderr}\n`;
-                }
+                // 여기 도달 시점: 프로세스가 종료된 뒤
+                outputArea.textContent += `\nProcess ended. code=${result.code}\n`;
             } catch (err) {
-                outputArea.textContent += `Error: ${err.message}`;
+                outputArea.textContent += `\n[ERROR] ${err.message}\n`;
             }
         });
+
 
         function selectFile(inputId) {
             const inputElement = document.getElementById(inputId);
@@ -298,6 +334,22 @@
                 settingsTableBody.innerHTML = ""; // 초기화
                 configData.forEach(rowData => {
                     addRow(rowData);
+                });
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        // 결과 불러오기
+        async function loadResults() {
+            try {
+                outputRetArea.textContent = '';
+                const retData = await window.electronAPI.loadResults();
+                console.log("retData", retData)
+                // configData가 배열 형태라고 가정 ([{type:'int', ...}, ...])
+                retData.forEach(rowData => {
+                    // output_ret 에 추가
+                    outputRetArea.textContent += rowData + '\n';
                 });
             } catch (e) {
                 console.error(e);

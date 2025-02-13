@@ -1,6 +1,5 @@
 import optuna
 import json
-print("Hello")
 
 
 class LoadJSON:
