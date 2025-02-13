@@ -3,26 +3,38 @@ import json
 print("Hello")
 
 
-def load_json(trial):
-    # open json
-    with open('config.json', 'r') as f:
-        data = json.load(f)
+class LoadJSON:
+    def __init__(self):
+        self.is_print = True
 
-    arg_dict = {}
-    for el in data:
-        if el['type'] == 'float':
-            # convert string to the name of python variable
-            arg_dict[el['name']] = trial.suggest_float(
-                el['name'], low=float(el['min']), high=float(el['max']), step=None if el['step'] == '' else float(el['step']), log=False if el['log'] == 'linear' else True)
-        elif el['type'] == 'int':
-            arg_dict[el['name']] = trial.suggest_int(
-                el['name'], low=int(el['min']), high=int(el['max']), step=None if el['step'] == '' else int(el['step']))
-        elif el['type'] == 'category':
-            arg_dict[el['name']] = trial.suggest_categorical(
-                el['name'], choices=el['categories'].split(','))
+    def load_json(self, trial):
+        # open json
+        with open('config.json', 'r') as f:
+            data = json.load(f)
 
-    return arg_dict
-    # json 에서 lr, arc 가져오기
+        arg_dict = {}
+        for el in data:
+            try:
+                if el['type'] == 'float':
+                    # convert string to the name of python variable
+                    arg_dict[el['name']] = trial.suggest_float(
+                        el['name'], low=float(el['min']), high=float(el['max']), step=None if el['step'] == '' else float(el['step']), log=False if el['log'] == 'linear' else True)
+                elif el['type'] == 'int':
+                    arg_dict[el['name']] = trial.suggest_int(
+                        el['name'], low=int(el['min']), high=int(el['max']), step=1 if el['step'] == '' else int(el['step']))
+                elif el['type'] == 'category':
+                    arg_dict[el['name']] = trial.suggest_categorical(
+                        el['name'], choices=el['categories'].split(','))
+            except Exception as e:
+                if self.is_print:
+                    print(f"Error: {e} in processing {el}, len {len(data)}")
+
+        # json 에서 lr, arc 가져오기
+        self.is_print = False
+        return arg_dict
+
+
+lj = LoadJSON()
 
 
 def func(**kwargs):
@@ -44,7 +56,7 @@ def objective(trial: optuna.Trial) -> float:
     # lr = trial.suggest_float("lr", 0.1, 1.0)
     # arc = trial.suggest_categorical("arc", ["mm", "nn"])
 
-    arg_dict = load_json(trial)
+    arg_dict = lj.load_json(trial)
 
     # func을 호출하고 auroc을 반환
     auroc = func(**arg_dict)
