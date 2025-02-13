@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Run Local Command</title>
+    <style>
+        .input-group {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .input-group input {
+            width: 400px;
+            /* 입력창 너비 조정 */
+            padding: 8px;
+            font-size: 16px;
+            flex-grow: 1;
+        }
+
+        .input-group button {
+            margin-left: 10px;
+            padding: 8px 12px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Run local command</h1>
+
+    <div class="input-group">
+        <input type="text" id="command" placeholder="Python path (e.g. /home/run/pyenv/bin/python)" />
+        <button onclick="selectFile('command')">Browse</button>
+    </div>
+
+    <div class="input-group">
+        <input type="text" id="args" placeholder="Optuna path (e.g. /home/run/main.py)" />
+        <button onclick="selectFile('args')">Browse</button>
+    </div>
+
+    <button id="runBtn">Run</button>
+
+    <pre id="output"></pre>
+
+    <script>
+        const runBtn = document.getElementById('runBtn');
+        const cmdInput = document.getElementById('command');
+        const argsInput = document.getElementById('args');
+        const outputArea = document.getElementById('output');
+
+        runBtn.addEventListener('click', async () => {
+            const cmd = cmdInput.value.trim();
+            const args = argsInput.value.trim().split(' ');
+
+            outputArea.textContent = 'Running command...\n';
+
+            try {
+                const result = await window.electronAPI.runCommand(cmd, args);
+                outputArea.textContent += `Exit code: ${result.code}\n`;
+                if (result.stdout) {
+                    outputArea.textContent += `\n--- STDOUT ---\n${result.stdout}\n`;
+                }
+                if (result.stderr) {
+                    outputArea.textContent += `\n--- STDERR ---\n${result.stderr}\n`;
+                }
+            } catch (err) {
+                outputArea.textContent += `Error: ${err.message}`;
+            }
+        });
+
+        function selectFile(inputId) { // 텍스트를 넣을 요소의 id 를 인자로 받음
+            const inputElement = document.getElementById(inputId); // id 로 요소를 찾음
+            const fileInput = document.createElement("input");  // 새로운 <input> 요소를 생성
+            fileInput.type = "file";  // input 요소의 type을 "file"로 설정 (파일 선택 창을 띄우기 위함)
+            fileInput.style.display = "none";  // 화면에 보이지 않도록 스타일을 "none"으로 설정
+
+            fileInput.onchange = function (event) {  // 사용자가 파일을 선택하면 실행되는 이벤트 핸들러 정의
+                if (event.target.files.length > 0) {  // 선택한 파일이 존재하는지 확인
+                    inputElement.value = event.target.files[0].path;  // 첫 번째 선택한 파일의 경로를 텍스트 박스(inputElement)에 설정
+                }
+            };
+
+            document.body.appendChild(fileInput);  // 생성한 <input type="file"> 요소를 body에 추가
+            fileInput.click();  // 강제로 클릭 이벤트를 실행하여 파일 선택 창을 띄움
+            document.body.removeChild(fileInput);  // 파일 선택 후 input 요소를 제거 (UI에 보이지 않도록 정리)
+        }
+
+    </script>
+</body>
+
+</html>
