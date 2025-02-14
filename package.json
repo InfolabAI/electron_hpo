@@ -6,12 +6,40 @@
     "start": "electron .",
     "build": "electron-builder"
   },
+  "dependencies": {
+    "electron-is-dev": "^3.0.1",
+    "unzipper": "^0.12.3"
+  },
   "devDependencies": {
     "electron": "^25.9.8",
     "electron-builder": "^25.1.8"
   },
   "build": {
     "appId": "com.example.myapp",
-    "productName": "MyElectronApp"
+    "productName": "MyElectronApp",
+    "asar": true,
+    "compression": "maximum",
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true
+    },
+    "files": [
+      "**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "json_files",
+        "to": "json_files"
+      },
+      {
+        "from": "env_win.zip",
+        "to": "env_win.zip"
+      },
+      {
+        "from": "python_scripts",
+        "to": "python_scripts"
+      }
+    ]
   }
 }

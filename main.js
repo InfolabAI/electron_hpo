@@ -2,7 +2,56 @@ const { app, BrowserWindow, ipcMain } = require('electron');
 const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
+const unzipper = require('unzipper');
 
+// statusWindow 모듈 가져오기
+const { openStatusWindow, updateStatusWindow, closeStatusWindow } = require('./statusWindow.js');
+
+
+const isDev = !app.isPackaged;
+
+// Python 환경 압축 해제 함수
+async function ensurePythonEnv() {
+    let zipFilePath, targetDir;
+    if (isDev) {
+        zipFilePath = path.join(__dirname, 'env_win.zip');
+        targetDir = path.join(__dirname, 'py_env');
+        console.log('[DEBUG] 개발 모드이므로 env_win.zip을 풀지 않습니다.');
+        //return;  // 개발 중에는 압축 해제 X
+    } else {
+        zipFilePath = path.join(process.resourcesPath, 'env_win.zip');
+        targetDir = path.join(process.resourcesPath, 'py_env');
+    }
+
+    if (fs.existsSync(targetDir)) {
+        console.log('[INFO] Python 환경이 이미 존재합니다:', targetDir);
+        return;
+    }
+
+    // 1) 상태 창 열고 초기 메시지
+    openStatusWindow('<h3>압축 해제 시작</h3>');
+
+    // 로그 출력 함수(콘솔+창 업데이트 같이 쓰고 싶다면 추가로 구현 가능)
+    const log = (message) => {
+        console.log(message);
+        updateStatusWindow(message + '<br>');
+    };
+
+    log('[INFO] Python 환경 압축 해제 시작...');
+    try {
+        await fs.createReadStream(zipFilePath)
+            .pipe(unzipper.Extract({ path: targetDir }))
+            .promise();
+        log('[INFO] Python 환경 압축 해제 완료', targetDir);
+    } catch (err) {
+        log('[ERROR] Python 환경 압축 해제 실패', err);
+    }
+
+    // 작업 끝난 뒤 잠시 후 창 닫기
+    setTimeout(() => closeStatusWindow(), 3000);
+}
+
+// 앱 창 생성 함수
 function createWindow() {
     const win = new BrowserWindow({
         width: 1000,
@@ -17,7 +66,8 @@ function createWindow() {
     win.loadFile('index.html');
 }
 
-app.whenReady().then(() => {
+// 앱 실행 시 Python 환경 체크 후 창 띄우기
+app.whenReady().then(async () => {
     createWindow();
 
     app.on('activate', () => {
@@ -25,14 +75,16 @@ app.whenReady().then(() => {
             createWindow();
         }
     });
+
+    await ensurePythonEnv(); // 압축 해제 (배포 환경에서만)
 });
 
+// 창이 모두 닫히면 앱 종료
 app.on('window-all-closed', () => {
     if (process.platform !== 'darwin') {
         app.quit();
     }
 });
-
 
 // ----------------------------------------------------------------------------------------
 // 1) Renderer가 "run-command"를 invoke하면, 자식 프로세스를 spawn하고
@@ -42,12 +94,11 @@ app.on('window-all-closed', () => {
 ipcMain.handle('run-command', async (event, command, args) => {
     return new Promise((resolve, reject) => {
         try {
-            // 예: Python -u 옵션 등으로 실행하면 stdout 버퍼링이 줄어듦
+            // Python 실행
             const child = spawn(command, args);
 
             // stdout 실시간 전송
             child.stdout.on('data', (data) => {
-                // 이벤트 이름 "command-stdout"은 임의로 정한 것
                 event.sender.send('command-stdout', data.toString());
             });
 
@@ -58,9 +109,6 @@ ipcMain.handle('run-command', async (event, command, args) => {
 
             child.on('close', (code) => {
                 event.sender.send('command-close', code);
-                // 프로세스가 끝난 시점에 Promise resolve
-                // -- 만약 종료되기 전까지는 invoke의 결과가 필요 없으면, 
-                //    여기서 resolve({ code }) 해주거나, 그냥 간단히 resolve()만 해도 됨.
                 resolve({ code });
             });
 
@@ -74,17 +122,50 @@ ipcMain.handle('run-command', async (event, command, args) => {
     });
 });
 
+// 공통 리소스 경로 반환 함수
+function getPythonScriptsPath() {
+    // 개발 모드 vs. 프로덕션 모드 구분
+    if (isDev) {
+        // 1) 개발 시(__dirname -> 프로젝트 폴더) 
+        //    => "python_scripts" 폴더가 프로젝트 루트/main.js 와 같은 위치에 있는 경우
+        return path.join(__dirname, 'python_scripts');
+    } else {
+        // 2) 프로덕션 빌드 시
+        //    => "python_scripts" 폴더가 extraResources 설정에 의해 
+        //       asar 바깥 (process.resourcesPath/python_scripts)에 배치됨
+        return path.join(process.resourcesPath, 'python_scripts');
+    }
+}
+
+
+// 공통 리소스 경로 반환 함수
+function getJSONPath() {
+    // 개발 모드 vs. 프로덕션 모드 구분
+    if (isDev) {
+        // 1) 개발 시(__dirname -> 프로젝트 폴더) 
+        //    => "python_scripts" 폴더가 프로젝트 루트/main.js 와 같은 위치에 있는 경우
+        return path.join(__dirname, 'json_files');
+    } else {
+        // 2) 프로덕션 빌드 시
+        //    => "python_scripts" 폴더가 extraResources 설정에 의해 
+        //       asar 바깥 (process.resourcesPath/python_scripts)에 배치됨
+        return path.join(process.resourcesPath, 'json_files');
+    }
+}
 
 // config.json 경로
-const configPath = path.join(__dirname, 'json_files/config.json');
+const configPath = path.join(getJSONPath(), 'config.json');
+console.log("configPath:", configPath);
+
+// results.json 경로
+const resultsMetricPath = path.join(getJSONPath(), 'best_metric.json');
+const resultsParamsPath = path.join(getJSONPath(), 'best_params.json');
 
 // config.json 읽기
 ipcMain.handle('load-config', async () => {
     if (!fs.existsSync(configPath)) {
-        // 파일이 없으면 빈 배열(혹은 원하는 초기값)을 반환
         return [];
     }
-    // 파일이 있으면 내용 파싱 후 반환
     const data = fs.readFileSync(configPath, 'utf-8');
     try {
         return JSON.parse(data);
@@ -105,26 +186,15 @@ ipcMain.handle('save-config', async (event, configData) => {
     }
 });
 
-// results.json 경로
-const resultsMetricPath = path.join(__dirname, 'json_files/best_metric.json');
-const resultsParamsPath = path.join(__dirname, 'json_files/best_params.json');
-
 // results.json 읽기
 ipcMain.handle('load-results', async () => {
     console.error("load-results 실행");
-    if (!fs.existsSync(resultsMetricPath)) {
-        // 파일이 없으면 빈 객체를 반환
+    if (!fs.existsSync(resultsMetricPath) || !fs.existsSync(resultsParamsPath)) {
         return [];
     }
-    if (!fs.existsSync(resultsParamsPath)) {
-        // 파일이 없으면 빈 객체를 반환
-        return [];
-    }
-    // 파일이 있으면 내용 파싱 후 반환
     const dataMetric = JSON.parse(fs.readFileSync(resultsMetricPath, 'utf-8'));
     const dataParams = JSON.parse(fs.readFileSync(resultsParamsPath, 'utf-8'));
-    console.error("dataMetric:", dataMetric);
-    console.error("dataParams:", dataParams);
+
     try {
         return [
             "Best metric:\n" + JSON.stringify(dataMetric, null, 4),
@@ -133,7 +203,6 @@ ipcMain.handle('load-results', async () => {
         ];
     } catch (err) {
         console.log("json 파싱 에러:", err);
-        //return { metrics: {}, params: {} };
         return [];
     }
 });
