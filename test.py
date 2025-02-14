@@ -8,7 +8,7 @@ class LoadJSON:
 
     def load_json(self, trial):
         # open json
-        with open('config.json', 'r') as f:
+        with open('json_files/config.json', 'r') as f:
             data = json.load(f)
 
         arg_dict = {}
