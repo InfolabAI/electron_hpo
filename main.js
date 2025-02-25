@@ -3,53 +3,92 @@ const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 const unzipper = require('unzipper');
+const exec = require('util').promisify(require('child_process').exec);
+
 
 // statusWindow 모듈 가져오기
 const { openStatusWindow, updateStatusWindow, closeStatusWindow } = require('./statusWindow.js');
 
-
 const isDev = !app.isPackaged;
+let childProcess = null;
 
 // Python 환경 압축 해제 함수
 async function ensurePythonEnv() {
-    let zipFilePath, targetDir;
-    if (isDev) {
-        zipFilePath = path.join(__dirname, 'env_win.zip');
-        targetDir = path.join(__dirname, 'py_env');
-        console.log('[DEBUG] 개발 모드이므로 env_win.zip을 풀지 않습니다.');
-        //return;  // 개발 중에는 압축 해제 X
-    } else {
-        zipFilePath = path.join(process.resourcesPath, 'env_win.zip');
-        targetDir = path.join(process.resourcesPath, 'py_env');
-    }
 
-    if (fs.existsSync(targetDir)) {
-        console.log('[INFO] Python 환경이 이미 존재합니다:', targetDir);
-        return;
+    let mainPath;
+    if (isDev) {
+        mainPath = __dirname;
+        console.log('[DEBUG] no decompression in development mode');
+        return;  // 개발 중에는 압축 해제 X
+    } else {
+        mainPath = process.resourcesPath;
     }
 
     // 1) 상태 창 열고 초기 메시지
-    openStatusWindow('<h3>압축 해제 시작</h3>');
+    openStatusWindow('<h3>Initializing Environment</h3>');
 
-    // 로그 출력 함수(콘솔+창 업데이트 같이 쓰고 싶다면 추가로 구현 가능)
+    // 로그 출력 함수
     const log = (message) => {
         console.log(message);
         updateStatusWindow(message + '<br>');
     };
 
-    log('[INFO] Python 환경 압축 해제 시작...');
-    try {
-        await fs.createReadStream(zipFilePath)
-            .pipe(unzipper.Extract({ path: targetDir }))
-            .promise();
-        log('[INFO] Python 환경 압축 해제 완료', targetDir);
-    } catch (err) {
-        log('[ERROR] Python 환경 압축 해제 실패', err);
+    let zipFilePath, targetDir;
+
+    zipFilePath = path.join(mainPath, 'hpo_env_win.zip');
+    targetDir = path.join(mainPath, 'py_env');
+
+    if (fs.existsSync(targetDir)) {
+        console.log('[INFO] Python environment already exists', targetDir);
+    }
+    else {
+        log('[INFO] Starting to unzip the Python environment...');
+        try {
+            await fs.createReadStream(zipFilePath)
+                .pipe(unzipper.Extract({ path: targetDir }))
+                .promise();
+            log('[INFO] Python environment unzipping complete');
+        } catch (err) {
+            log('[ERROR] Failed to unzip the Python environment');
+            console.error(err);
+        }
+
     }
 
+    const pyScriptPath = path.join(process.resourcesPath, 'python_scripts');
+
+    // PyInstaller 실행 경로 (py_env/Scripts/pyinstaller.exe)
+    const pyInstallerPath = path.join(process.resourcesPath, 'py_env', 'Scripts', 'pyinstaller.exe');
+    // 빌드 대상 스크립트 경로
+    const testLocalServerPath = path.join(pyScriptPath, 'test_local_server.py');
+    if (fs.existsSync(path.join(pyScriptPath, 'test_local_server.exe'))) {
+        console.log('[INFO] The local server already exists', path.join(pyScriptPath, 'test_local_server.exe'));
+        return;
+    }
+    // =========================
+    // 아래 부분에 PyInstaller 빌드 및 파일 삭제 코드 추가
+    // =========================
+    try {
+        log('[INFO] Building the local server...');
+
+        // PyInstaller로 exe 빌드 (onefile 모드)
+        await exec(`"${pyInstallerPath}" --onefile --distpath "${pyScriptPath}" "${testLocalServerPath}"`);
+        log('[INFO] Local server build completed');
+
+        // 빌드 후 사용했던 test_local_server.py, test.py 삭제
+        fs.unlinkSync(testLocalServerPath);
+        fs.unlinkSync(path.join(pyScriptPath, 'test.py'));
+        log('[INFO] File cleanup completed');
+    } catch (err) {
+        log('[ERROR] Failed to build with PyInstaller or delete files');
+        console.error(err);
+    }
+
+    log('[INFO] (Closing the window in 5 seconds)');
     // 작업 끝난 뒤 잠시 후 창 닫기
-    setTimeout(() => closeStatusWindow(), 3000);
+    setTimeout(() => closeStatusWindow(), 5000);
 }
+
 
 // 앱 창 생성 함수
 function createWindow() {
@@ -86,16 +125,52 @@ app.on('window-all-closed', () => {
     }
 });
 
+// app이 종료되기 직전(모든 윈도우가 닫히거나 quit가 호출되기 직전)
+app.on('before-quit', (event) => {
+    if (childProcess) {
+        // 자식 프로세스 종료
+        childProcess.kill();
+        childProcess = null;
+        console.log("Child process terminated");
+    }
+});
+
 // ----------------------------------------------------------------------------------------
 // 1) Renderer가 "run-command"를 invoke하면, 자식 프로세스를 spawn하고
 //    stdout/stderr 발생 시마다 메인 → 렌더러로 이벤트("command-stdout", "command-stderr")를 보냄
 //    프로세스 종료 시 "command-close" 이벤트 전송
 // ----------------------------------------------------------------------------------------
 ipcMain.handle('run-command', async (event, command, args) => {
+    console.log("cmd:", command, "args:", args);
+    if (isDev) {
+        command = path.resolve(__dirname, '..', 'hpo_env_linux', 'bin', 'python');
+        args = [
+            path.resolve(__dirname, 'python_scripts', 'test_local_server.py'),
+            '--root',
+            __dirname
+        ];
+    }
+    else {
+        //command = path.resolve(process.resourcesPath, 'py_env', 'Scripts', 'python.exe');
+        command = path.resolve(process.resourcesPath, 'python_scripts', 'test_local_server.exe')
+        args = [
+            '--root',
+            process.resourcesPath
+        ];
+    }
+    console.log("command", command);
+    console.log("args", args);
+    // if (isDev) {
+    // }
+    // else {
+    //     args.push('--path', 'resources');
+    //     console.log("배포 모드에서는 args에 --path resources 추가");
+    // }
     return new Promise((resolve, reject) => {
         try {
             // Python 실행
             const child = spawn(command, args);
+            childProcess = child;
 
             // stdout 실시간 전송
             child.stdout.on('data', (data) => {
@@ -170,7 +245,7 @@ ipcMain.handle('load-config', async () => {
     try {
         return JSON.parse(data);
     } catch (err) {
-        console.error("config.json 파싱 에러:", err);
+        console.log("Error parsing json", err);
         return [];
     }
 });
@@ -181,14 +256,14 @@ ipcMain.handle('save-config', async (event, configData) => {
         fs.writeFileSync(configPath, JSON.stringify(configData, null, 2), 'utf-8');
         return true;
     } catch (err) {
-        console.error("config.json 저장 에러:", err);
+        console.error("Error saving config.json", err);
         throw err;
     }
 });
 
 // results.json 읽기
 ipcMain.handle('load-results', async () => {
-    console.error("load-results 실행");
+    console.error("Executing load-results");
     if (!fs.existsSync(resultsMetricPath) || !fs.existsSync(resultsParamsPath)) {
         return [];
     }
@@ -202,7 +277,7 @@ ipcMain.handle('load-results', async () => {
             "Best params:\n" + JSON.stringify(dataParams, null, 4)
         ];
     } catch (err) {
-        console.log("json 파싱 에러:", err);
+        console.log("Error parsing json", err);
         return [];
     }
 });

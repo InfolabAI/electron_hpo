@@ -7,7 +7,6 @@
     "build": "electron-builder"
   },
   "dependencies": {
-    "electron-is-dev": "^3.0.1",
     "unzipper": "^0.12.3"
   },
   "devDependencies": {
@@ -33,8 +32,8 @@
         "to": "json_files"
       },
       {
-        "from": "env_win.zip",
-        "to": "env_win.zip"
+        "from": "hpo_env_win.zip",
+        "to": "hpo_env_win.zip"
       },
       {
         "from": "python_scripts",
