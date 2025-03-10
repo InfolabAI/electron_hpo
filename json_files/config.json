@@ -1,15 +1,26 @@
 [
   {
     "type": "float",
-    "name": "lr",
-    "min": "0.1",
-    "max": "100.0",
+    "name": "x",
+    "min": "140.0",
+    "max": "160.0",
     "step": "",
     "log": "linear"
   },
   {
-    "type": "category",
-    "name": "arc",
-    "categories": "nn,mm,nn1"
+    "type": "float",
+    "name": "y",
+    "min": "-0.1",
+    "max": "0.1",
+    "step": "",
+    "log": "linear"
+  },
+  {
+    "type": "float",
+    "name": "r",
+    "min": "0.0",
+    "max": "0.5",
+    "step": "",
+    "log": "linear"
   }
 ]

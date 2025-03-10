@@ -226,6 +226,9 @@ bool postMetric(double auroc, const std::string &server_url)
     curl_slist_free_all(headers);
     curl_easy_cleanup(curl);
 
+    // 잠시 대기
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
     return result; // true면 실패
 }
 
@@ -258,9 +261,6 @@ int main()
                 // 점수 전송에 실패한 경우, 상황에 따라 종료
                 break;
             }
-
-            // 잠시 대기 후 다음 루프
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
         }
         catch (const std::exception &e)
         {
