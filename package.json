@@ -15,7 +15,7 @@
   },
   "build": {
     "appId": "com.example.myapp",
-    "productName": "MyElectronApp",
+    "productName": "HPOptimizer",
     "asar": true,
     "compression": "maximum",
     "nsis": {

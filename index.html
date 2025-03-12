@@ -142,7 +142,7 @@
                 -->
                 <div id="mainTab" class="tab-content active">
 
-                    <h1>Locate optimizer path</h1>
+                    <!-- <h1>Locate optimizer path</h1> -->
 
                     <!--
                     <div class="input-group mb-3">
@@ -160,8 +160,8 @@
                             - id="command": JS에서 값을 읽거나 변경할 때 사용.
                             - placeholder="Python path...": 
                                 사용자가 입력하기 전에 표시할 안내 텍스트.
-                        -->
                         <input type="text" class="form-control" id="command" placeholder="Python path..." />
+                        -->
 
                         <!--
                         <button class="btn btn-outline-secondary" onclick="selectFile('command')">Browse</button>
@@ -170,17 +170,22 @@
                             - onclick="selectFile('command')": 
                             버튼을 클릭하면 JavaScript의 selectFile() 함수를 호출, 
                             'command'라는 인자를 넘겨 해당 input에 파일 경로를 세팅하도록 구현.
-                        -->
                         <button class="btn btn-outline-secondary" onclick="selectFile('command')">Browse</button>
+                        -->
+                        <div class="input-group mb-3">
+                            <span class="input-group-text">Number of Trials</span>
+                            <input type="text" class="form-control" id="n_trials" placeholder="The number of trials..."
+                                value="30" />
+                        </div>
                     </div>
 
-                    <!--
-                    두 번째 input-group (args 입력)
-                    - 구조와 역할은 위와 동일, id 및 placeholder만 다름.
-                    -->
                     <div class="input-group mb-3">
+                        <!--
+                        두 번째 input-group (args 입력)
+                        - 구조와 역할은 위와 동일, id 및 placeholder만 다름.
                         <input type="text" class="form-control" id="args" placeholder="Optuna path..." />
                         <button class="btn btn-outline-secondary" onclick="selectFile('args')">Browse</button>
+                        -->
                     </div>
 
                     <!--
@@ -323,8 +328,9 @@
         // 메인 탭 (기존 기능)
         // ---------------------
         const runBtn = document.getElementById('runBtn');
-        const cmdInput = document.getElementById('command');
-        const argsInput = document.getElementById('args');
+        // const cmdInput = document.getElementById('command');
+        // const argsInput = document.getElementById('args');
+        const nTrialsInput = document.getElementById('n_trials');
         const outputArea = document.getElementById('output');
         const outputRetArea = document.getElementById('output_ret');
 
@@ -348,15 +354,18 @@
         // ============================================================
 
         runBtn.addEventListener('click', async () => {
-            const cmd = cmdInput.value.trim();
             // 공백으로 구분된 인자를 배열로
-            const args = argsInput.value.trim().split(' ');
+            //const cmd = cmdInput.value.trim();
+            const cmd = '';
+            //const args = argsInput.value.trim().split(' ');
+            const n_trials = nTrialsInput.value.trim();
+            const args = '';
 
             outputArea.textContent = 'Running command...\n';
 
             try {
                 // 프로세스 시작
-                const result = await window.electronAPI.runCommand(cmd, args);
+                const result = await window.electronAPI.runCommand(cmd, args, n_trials);
                 // 여기 도달 시점: 프로세스가 종료된 뒤
                 outputArea.textContent += `\nProcess ended. code=${result.code}\n`;
             } catch (err) {

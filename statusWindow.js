@@ -17,13 +17,15 @@ function openStatusWindow(content) {
     statusWindow = new BrowserWindow({
         width: 400,
         height: 300,
-        title: '작업 상태',
+        title: '---',
         // 필요 시 webPreferences 설정
         webPreferences: {
             nodeIntegration: false,
             contextIsolation: true,
         },
     });
+
+    statusWindow.setMenu(null)
 
     // data URL 방식으로 HTML 문자열 직접 로드
     statusWindow.loadURL(

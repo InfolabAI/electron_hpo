@@ -10,14 +10,18 @@ def func(**kwargs):
     클라이언트에서 직접 돌리는 예시 함수(임의 가정).
     여기서 실제로 모델 학습 & 검증 후 점수를 구했다고 가정.
     """
+    # HPO 에서 lr, arc 를 설정했을 때의 예제
     lr = kwargs.get('lr', 0.1)
     arc = kwargs.get('arc', 'mm')
 
+    # 예제 코드이므로 삭제(시작)
     base_score = 0.8
     lr_influence = (lr - 0.1) * 0.1
     arc_influence = 0.12 if arc == 'nn' else 0.0
     auroc = base_score + lr_influence + arc_influence
-    return auroc
+    # 예제 코드이므로 삭제(끝)
+
+    return auroc  # 이번 trial 에 대한 점수를 구한 후 반환(float)
 
 
 def get_json(server_url):

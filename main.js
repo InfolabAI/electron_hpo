@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, Menu } = require('electron');
 const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
@@ -24,6 +24,21 @@ async function ensurePythonEnv() {
         mainPath = process.resourcesPath;
     }
 
+
+    let zipFilePath, targetDir;
+
+    zipFilePath = path.join(mainPath, 'hpo_env_win.zip');
+    targetDir = path.join(mainPath, 'py_env');
+    const pyScriptPath = path.join(process.resourcesPath, 'python_scripts');
+    // 빌드 대상 스크립트 경로
+    const testLocalServerPath = path.join(pyScriptPath, 'test_local_server.py');
+
+    // 이미 py_env 폴더와 test_local_server.exe 둘 다 있으면 바로 return
+    if (fs.existsSync(targetDir) && fs.existsSync(localServerExePath)) {
+        console.log('[INFO] Python env and local server already exist. No action needed.');
+        return;
+    }
+
     // 1) 상태 창 열고 초기 메시지
     openStatusWindow('<h3>Initializing Environment</h3>');
 
@@ -33,54 +48,36 @@ async function ensurePythonEnv() {
         updateStatusWindow(message + '<br>');
     };
 
-    let zipFilePath, targetDir;
-
-    zipFilePath = path.join(mainPath, 'hpo_env_win.zip');
-    targetDir = path.join(mainPath, 'py_env');
-
-    if (fs.existsSync(targetDir)) {
-        console.log('[INFO] Python environment already exists', targetDir);
+    log('[INFO] Starting to set up the Python environment...');
+    try {
+        await fs.createReadStream(zipFilePath)
+            .pipe(unzipper.Extract({ path: targetDir }))
+            .promise();
+        log('[INFO] The Python environment has been successfully set up');
+    } catch (err) {
+        log('[ERROR] Failed to set up the Python environment');
+        console.error(err);
     }
-    else {
-        log('[INFO] Starting to unzip the Python environment...');
-        try {
-            await fs.createReadStream(zipFilePath)
-                .pipe(unzipper.Extract({ path: targetDir }))
-                .promise();
-            log('[INFO] Python environment unzipping complete');
-        } catch (err) {
-            log('[ERROR] Failed to unzip the Python environment');
-            console.error(err);
-        }
-
-    }
-
-    const pyScriptPath = path.join(process.resourcesPath, 'python_scripts');
 
     // PyInstaller 실행 경로 (py_env/Scripts/pyinstaller.exe)
     const pyInstallerPath = path.join(process.resourcesPath, 'py_env', 'Scripts', 'pyinstaller.exe');
-    // 빌드 대상 스크립트 경로
-    const testLocalServerPath = path.join(pyScriptPath, 'test_local_server.py');
-    if (fs.existsSync(path.join(pyScriptPath, 'test_local_server.exe'))) {
-        console.log('[INFO] The local server already exists', path.join(pyScriptPath, 'test_local_server.exe'));
-        return;
-    }
+
     // =========================
     // 아래 부분에 PyInstaller 빌드 및 파일 삭제 코드 추가
     // =========================
     try {
-        log('[INFO] Building the local server...');
+        log('[INFO] Building...');
 
         // PyInstaller로 exe 빌드 (onefile 모드)
         await exec(`"${pyInstallerPath}" --onefile --distpath "${pyScriptPath}" "${testLocalServerPath}"`);
-        log('[INFO] Local server build completed');
+        log('[INFO] Successfully built');
 
         // 빌드 후 사용했던 test_local_server.py, test.py 삭제
         fs.unlinkSync(testLocalServerPath);
-        fs.unlinkSync(path.join(pyScriptPath, 'test.py'));
-        log('[INFO] File cleanup completed');
+        console.log('[INFO] File cleanup completed');
     } catch (err) {
-        log('[ERROR] Failed to build with PyInstaller or delete files');
+        log('[ERROR] Failed to build');
+        console.log('[ERROR] Failed to build with PyInstaller or delete files')
         console.error(err);
     }
 
@@ -116,6 +113,33 @@ app.whenReady().then(async () => {
     });
 
     await ensurePythonEnv(); // 압축 해제 (배포 환경에서만)
+
+    const template = [
+        {
+            label: 'File',
+            submenu: [
+                { role: 'quit' }
+            ]
+        },
+        {
+            label: 'Help',
+            submenu: [
+                {
+                    label: 'About This App',
+                    click: () => {
+                        // 여기서 정보 표시 / 새 창 띄우기 등
+                        console.log('Show about info with my name here');
+
+                        // 1) 상태 창 열고 초기 메시지
+                        //openStatusWindow('검사AI개발Task 임희철');
+                    }
+                }
+            ]
+        }
+    ];
+
+    const menu = Menu.buildFromTemplate(template);
+    Menu.setApplicationMenu(menu);
 });
 
 // 창이 모두 닫히면 앱 종료
@@ -140,8 +164,16 @@ app.on('before-quit', (event) => {
 //    stdout/stderr 발생 시마다 메인 → 렌더러로 이벤트("command-stdout", "command-stderr")를 보냄
 //    프로세스 종료 시 "command-close" 이벤트 전송
 // ----------------------------------------------------------------------------------------
-ipcMain.handle('run-command', async (event, command, args) => {
+ipcMain.handle('run-command', async (event, command, args, n_trials) => {
     console.log("cmd:", command, "args:", args);
+
+    if (childProcess) {
+        // 자식 프로세스 종료
+        childProcess.kill();
+        childProcess = null;
+        console.log("Child process terminated");
+    }
+
     if (isDev) {
         command = path.resolve(__dirname, '..', 'hpo_env_linux', 'bin', 'python');
         args = [
@@ -151,13 +183,34 @@ ipcMain.handle('run-command', async (event, command, args) => {
         ];
     }
     else {
+
+        // 기존에 실행된 서버 모두 종료
+        const { exec } = require('child_process');
+        const util = require('util');
+        const execPromise = util.promisify(exec);
+        const processName = 'test_local_server.exe';
+
+        try {
+            // 특정 이름을 가진 모든 프로세스 종료 (콜백 없이 사용)
+            const { stdout, stderr } = await execPromise(`taskkill /F /IM ${processName}`);
+            console.log(`[INFO] Killed all processes named "${processName}"`);
+            if (stdout) console.log('stdout:', stdout);
+            if (stderr) console.log('stderr:', stderr);
+        } catch (error) {
+            // 프로세스가 없으면 'ERROR: The process "xxx" not found.' 같은 메시지가 올 수도 있음
+            console.error('[ERROR] Failed to kill process:', error.message);
+        }
+
         //command = path.resolve(process.resourcesPath, 'py_env', 'Scripts', 'python.exe');
         command = path.resolve(process.resourcesPath, 'python_scripts', 'test_local_server.exe')
         args = [
             '--root',
-            process.resourcesPath
+            process.resourcesPath,
         ];
     }
+
+    args = args.concat(['--n_trials', n_trials]);
+
     console.log("command", command);
     console.log("args", args);
     // if (isDev) {

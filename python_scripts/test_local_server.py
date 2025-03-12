@@ -6,8 +6,7 @@ import time
 import sys
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
-# 이 방식은 "완전 무조건 flush(unbuffered)"는 아니지만, 줄 단위로 버퍼가 비워집니다.
-# 만약 print(..., end='') 처럼 개행 없이 출력하는 경우에는 버퍼가 쌓일 수도 있으니 주의하세요.
+# 이 방식은 "완전 무조건 flush(unbuffered)"는 아니지만, 줄 단위로 버퍼가 비워짐. 만약 print(..., end='') 처럼 개행 없이 출력하는 경우에는 버퍼가 쌓일 수도 있으니 주의.
 sys.stdout.reconfigure(line_buffering=True)
 
 
@@ -170,6 +169,7 @@ if __name__ == "__main__":
     args = argparse.ArgumentParser()
     args.add_argument("--port", type=int, default=8005)
     args.add_argument("--root", type=str, default='./')
+    args.add_argument("--n_trials", type=int, default=30)
     args = args.parse_args()
     oj = MyObjective(root=args.root)
     # -------------------------
@@ -187,7 +187,7 @@ if __name__ == "__main__":
     # -------------------------
     sampler = optuna.samplers.TPESampler()
     study = optuna.create_study(direction='maximize', sampler=sampler)
-    study.optimize(oj, n_trials=30)
+    study.optimize(oj, n_trials=args.n_trials)
 
     # -------------------------
     # 3. 결과 출력
