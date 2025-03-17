@@ -5,6 +5,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     loadConfig: () => ipcRenderer.invoke('load-config'),
     saveConfig: (data) => ipcRenderer.invoke('save-config', data),
     loadResults: () => ipcRenderer.invoke('load-results'), // 이거 자체가 함수 결과를 바로 리턴하는 것이므로, {} 로 감싸서 여러 줄을 작성하면 return 값이 index.html 로 전달이 안됨
+    getDashboardPreloadPath: () => ipcRenderer.invoke('get-dashboard-preload-path'),
 
     // stdout/stderr/close/error 이벤트 실시간 수신
     onCommandStdout: (callback) => {
@@ -27,13 +28,4 @@ contextBridge.exposeInMainWorld('electronAPI', {
             callback(errMsg);
         });
     },
-});
-
-// preload.js
-window.addEventListener('DOMContentLoaded', () => {
-    const feedback = document.querySelector('li[title="Send Feedback"]');
-    if (feedback) {
-        feedback.style.display = 'none';
-    }
-    localStorage.setItem('theme', 'light');
 });

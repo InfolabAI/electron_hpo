@@ -1,4 +1,5 @@
 const { app, BrowserWindow, ipcMain, Menu } = require('electron');
+const { pathToFileURL } = require('url');
 const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
@@ -102,11 +103,15 @@ function createWindow() {
             nodeIntegration: false,
             contextIsolation: true,
             preload: path.join(__dirname, 'preload.js'),
+            nodeIntegrationInSubFrames: true, // <webview> 내부 스크립트 허용
+            webviewTag: true  // ← 이걸 반드시 추가해줘야 <webview> 태그가 동작함!
         },
     });
 
     win.loadFile('index.html');
 }
+
+
 
 // 앱 실행 시 Python 환경 체크 후 창 띄우기
 app.whenReady().then(async () => {
@@ -141,7 +146,22 @@ app.whenReady().then(async () => {
                     }
                 }
             ]
-        }
+        },
+        {
+            label: 'View',
+            submenu: [
+                {
+                    label: 'Toggle DevTools',
+                    accelerator: 'Ctrl+Shift+P', // 원하는 키로 변경 가능
+                    click: (item, focusedWindow) => {
+                        if (focusedWindow) {
+                            focusedWindow.webContents.toggleDevTools();
+                        }
+                    },
+                },
+                // 다른 메뉴 항목들
+            ],
+        },
     ];
 
     const menu = Menu.buildFromTemplate(template);
@@ -339,4 +359,21 @@ ipcMain.handle('load-results', async () => {
         console.log("Error parsing json", err);
         return [];
     }
+});
+
+
+// IPC로 렌더러에 경로를 알려주는 예시
+ipcMain.handle('get-dashboard-preload-path', async () => {
+    let PATH = '';
+    // isDev는 이미 어디선가 선언되어 있다고 가정
+    if (isDev) {
+        //path.join(__dirname, 'dashboardPreload.js');
+        PATH = path.join(__dirname, 'dashboardPreload.js');
+    } else {
+        //path.join(process.resourcesPath, 'dashboardPreload.js');
+        PATH = path.join(process.resourcesPath, 'dashboardPreload.js');
+    }
+    PATH = pathToFileURL(PATH).href; // Windows 경로 또는 스페이스 바 있어도 문제없도록 하는 코드. 자동으로 file:// 붙여줌
+    console.log("dashboard-preload-path", PATH);
+    return PATH;
 });
