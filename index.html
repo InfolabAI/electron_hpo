@@ -107,7 +107,10 @@
                 -->
                 <button class="btn btn-primary w-100 d-block mx-auto mb-2" id="btnMain">Main</button>
                 <button class="btn btn-warning w-100 d-block mx-auto mb-2" id="btnSettings">Settings</button>
-                <button class="btn btn-success w-100 d-block mx-auto" id="btnResults">Results</button>
+                <button class="btn btn-success w-100 d-block mx-auto mb-2" id="btnResults">Results</button>
+                <!-- 기존 버튼들 아래에 Dashboard 버튼 하나 추가 -->
+                <button class="btn btn-info w-100 d-block mx-auto mt-2" id="btnDashboard">Dashboard</button>
+
             </div>
 
             <!-- 오른쪽 컨텐츠: 남은 공간(col) -->
@@ -291,6 +294,13 @@
                     <pre id="output_ret" class="p-3 bg-light" style="border: 1px solid #ccc;"></pre>
                 </div>
 
+                <!-- 기존 resultsTab 아래 등 원하는 위치에 새 div 추가 -->
+                <div id="dashboardTab" class="tab-content">
+                    <!-- Optuna Dashboard 페이지를 불러올 iframe 예시 -->
+                    <!-- <iframe src="http://localhost:8080" style="width: 100%; height: 800px; border: none;"></iframe>
+                    -->
+                </div>
+
             </div> <!-- col 끝 -->
         </div> <!-- row 끝 -->
     </div> <!-- container-fluid 끝 -->
@@ -300,19 +310,24 @@
         const btnMain = document.getElementById("btnMain");
         const btnSettings = document.getElementById("btnSettings");
         const btnResults = document.getElementById("btnResults");
+        const btnDashboard = document.getElementById("btnDashboard");
         const mainTab = document.getElementById("mainTab");
         const settingsTab = document.getElementById("settingsTab");
         const resultsTab = document.getElementById("resultsTab");
+        const dashboardTab = document.getElementById("dashboardTab");
+
 
         btnMain.addEventListener("click", () => {
             mainTab.classList.add("active");
             settingsTab.classList.remove("active");
             resultsTab.classList.remove("active");
+            dashboardTab.classList.remove("active");
         });
         btnSettings.addEventListener("click", async () => {
             mainTab.classList.remove("active");
             settingsTab.classList.add("active");
             resultsTab.classList.remove("active");
+            dashboardTab.classList.remove("active");
             // 설정 탭 들어갈 때마다 config.json 불러오기
             await loadConfig();
         });
@@ -320,8 +335,16 @@
             mainTab.classList.remove("active");
             settingsTab.classList.remove("active");
             resultsTab.classList.add("active");
+            dashboardTab.classList.remove("active");
             // 결과 탭 들어갈 때마다 결과 불러오기
             await loadResults();
+        });
+        // 버튼 클릭 시 다른 탭들의 active 제거 후 dashboardTab에 active 부여
+        btnDashboard.addEventListener("click", () => {
+            mainTab.classList.remove("active");
+            settingsTab.classList.remove("active");
+            resultsTab.classList.remove("active");
+            dashboardTab.classList.add("active");
         });
 
         // ---------------------
@@ -454,7 +477,7 @@
 
             // [수정] 1) - 버튼을 가운데 정렬, Bootstrap 버튼 스타일 적용
             const tdRemove = document.createElement("td");
-            tdRemove.classList.add("text-center");  // 가운데 정렬
+            tdRemove.classList.add("text-center"); // 가운데 정렬
             const removeBtn = document.createElement("button");
             removeBtn.className = "remove-row-btn btn btn-sm btn-outline-danger";
             removeBtn.textContent = "-";

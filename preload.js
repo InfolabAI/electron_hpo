@@ -28,3 +28,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
         });
     },
 });
+
+// preload.js
+window.addEventListener('DOMContentLoaded', () => {
+    const feedback = document.querySelector('li[title="Send Feedback"]');
+    if (feedback) {
+        feedback.style.display = 'none';
+    }
+    localStorage.setItem('theme', 'light');
+});

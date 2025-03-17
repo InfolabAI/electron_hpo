@@ -12,42 +12,42 @@ const { openStatusWindow, updateStatusWindow, closeStatusWindow } = require('./s
 const isDev = !app.isPackaged;
 let childProcess = null;
 
-// Python 환경 압축 해제 함수
 async function ensurePythonEnv() {
-
-    let mainPath;
+    // 개발 모드면 압축 해제/빌드 로직 스킵
     if (isDev) {
-        mainPath = __dirname;
-        console.log('[DEBUG] no decompression in development mode');
-        return;  // 개발 중에는 압축 해제 X
-    } else {
-        mainPath = process.resourcesPath;
+        console.log('[DEBUG] No decompression in development mode');
+        return;
     }
 
-
-    let zipFilePath, targetDir;
-
-    zipFilePath = path.join(mainPath, 'hpo_env_win.zip');
-    targetDir = path.join(mainPath, 'py_env');
-    const pyScriptPath = path.join(process.resourcesPath, 'python_scripts');
-    // 빌드 대상 스크립트 경로
+    // 기본 경로들
+    const mainPath = process.resourcesPath;
+    const zipFilePath = path.join(mainPath, 'hpo_env_win.zip');
+    const targetDir = path.join(mainPath, 'py_env');
+    const pyScriptPath = path.join(mainPath, 'python_scripts');
     const testLocalServerPath = path.join(pyScriptPath, 'test_local_server.py');
+    const localServerExePath = path.join(pyScriptPath, 'test_local_server.exe');
+    const pythonPath = path.join(targetDir, 'python.exe');
 
-    // 이미 py_env 폴더와 test_local_server.exe 둘 다 있으면 바로 return
-    if (fs.existsSync(targetDir) && fs.existsSync(localServerExePath)) {
+    // 이미 준비돼 있다면 종료
+    if (
+        fs.existsSync(targetDir) &&
+        fs.existsSync(localServerExePath) &&
+        !fs.existsSync(testLocalServerPath)
+    ) {
         console.log('[INFO] Python env and local server already exist. No action needed.');
         return;
     }
 
-    // 1) 상태 창 열고 초기 메시지
+    // 상태 창 열기
     openStatusWindow('<h3>Initializing Environment</h3>');
 
-    // 로그 출력 함수
+    // 로그를 남기고 상태창에 표시하는 헬퍼 함수
     const log = (message) => {
         console.log(message);
         updateStatusWindow(message + '<br>');
     };
 
+    // 1) Python 환경 압축 해제
     log('[INFO] Starting to set up the Python environment...');
     try {
         await fs.createReadStream(zipFilePath)
@@ -59,31 +59,37 @@ async function ensurePythonEnv() {
         console.error(err);
     }
 
-    // PyInstaller 실행 경로 (py_env/Scripts/pyinstaller.exe)
-    const pyInstallerPath = path.join(process.resourcesPath, 'py_env', 'Scripts', 'pyinstaller.exe');
-
-    // =========================
-    // 아래 부분에 PyInstaller 빌드 및 파일 삭제 코드 추가
-    // =========================
+    // 2) PyInstaller 빌드
     try {
         log('[INFO] Building...');
-
-        // PyInstaller로 exe 빌드 (onefile 모드)
-        await exec(`"${pyInstallerPath}" --onefile --distpath "${pyScriptPath}" "${testLocalServerPath}"`);
+        await exec(
+            `"${pythonPath}" -m PyInstaller --onefile --console --distpath "${pyScriptPath}" "${testLocalServerPath}"`
+        );
         log('[INFO] Successfully built');
 
-        // 빌드 후 사용했던 test_local_server.py, test.py 삭제
+        // 빌드 후 사용했던 파이썬 스크립트 제거
         fs.unlinkSync(testLocalServerPath);
-        console.log('[INFO] File cleanup completed');
+        log('[INFO] File cleanup completed');
     } catch (err) {
         log('[ERROR] Failed to build');
-        console.log('[ERROR] Failed to build with PyInstaller or delete files')
-        console.error(err);
+        console.error('[ERROR] Failed to build with PyInstaller or delete files', err);
     }
 
-    log('[INFO] (Closing the window in 5 seconds)');
-    // 작업 끝난 뒤 잠시 후 창 닫기
-    setTimeout(() => closeStatusWindow(), 5000);
+    // 3) 최종 확인 후 성공 or 실패 로그 + 종료 처리
+    if (
+        fs.existsSync(targetDir) &&
+        fs.existsSync(localServerExePath) &&
+        !fs.existsSync(testLocalServerPath)
+    ) {
+        log('[INFO] (Closing the window in 10 seconds)');
+        setTimeout(() => closeStatusWindow(), 10000);
+    } else {
+        log('[ERROR] Required conditions not met. Exiting the Electron app in 10 seconds.');
+        setTimeout(() => {
+            closeStatusWindow();
+            app.quit();
+        }, 10000);
+    }
 }
 
 

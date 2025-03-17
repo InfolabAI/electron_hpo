@@ -1,3 +1,5 @@
+import argparse
+import traceback
 import optuna
 import os
 import json
@@ -11,6 +13,7 @@ sys.stdout.reconfigure(line_buffering=True)
 
 
 # 전역 변수들
+BEST_ARGS = None   # 현재 Trial의 파라미터 dict
 CURRENT_ARGS = None   # 현재 Trial의 파라미터 dict
 CURRENT_SCORE = None  # 현재 Trial에 대한 score(auroc)
 
@@ -41,10 +44,19 @@ class SimpleHandler(BaseHTTPRequestHandler):
                 # wfile을 통해 응답 본문(body)을 전송 (UTF-8 인코딩)
                 self.wfile.write(resp.encode("utf-8"))
             else:
-                # CURRENT_ARGS가 None이라면 404 에러와 메시지 반환
                 self.send_error(404, "No current trial parameters.")
+        elif self.path == "/best":
+            global BEST_ARGS
+            if BEST_ARGS is not None:
+                self.send_response(200)
+                self.send_header("Content-type", "application/json")
+                self.end_headers()
+                resp = json.dumps(BEST_ARGS)
+                self.wfile.write(resp.encode("utf-8"))
+                BEST_ARGS = None  # 이 값이 None 이 되어야 서버가 꺼지게 해둠
+            else:
+                self.send_error(404, "No best trial parameters found.")
         else:
-            # "/trial" 이외의 경로로 들어오면 404 에러와 메시지 반환
             self.send_error(404, "Not Found")
 
     # HTTP POST 요청을 처리하는 메서드
@@ -165,45 +177,58 @@ class MyObjective:
 
 
 if __name__ == "__main__":
-    import argparse
-    args = argparse.ArgumentParser()
-    args.add_argument("--port", type=int, default=8005)
-    args.add_argument("--root", type=str, default='./')
-    args.add_argument("--n_trials", type=int, default=30)
-    args = args.parse_args()
-    oj = MyObjective(root=args.root)
-    # -------------------------
-    # 1. 로컬 웹서버 기동
-    # -------------------------
-    host = "0.0.0.0"
-    port = 8005
-    server = HTTPServer((host, port), SimpleHandler)
-    server_thread = threading.Thread(target=server.serve_forever, daemon=True)
-    server_thread.start()
-    print(f"Server started: http://{host}:{port}")
+    try:
+        args = argparse.ArgumentParser()
+        args.add_argument("--port", type=int, default=8005)
+        args.add_argument("--root", type=str, default='./')
+        args.add_argument("--n_trials", type=int, default=30)
+        args = args.parse_args()
+        oj = MyObjective(root=args.root)
+        # -------------------------
+        # 1. 로컬 웹서버 기동
+        # -------------------------
+        host = "0.0.0.0"
+        port = 8005
+        server = HTTPServer((host, port), SimpleHandler)
+        server_thread = threading.Thread(
+            target=server.serve_forever, daemon=True)
+        server_thread.start()
+        print(f"Server started: http://{host}:{port}")
 
-    # -------------------------
-    # 2. Optuna 설정 및 실행
-    # -------------------------
-    sampler = optuna.samplers.TPESampler()
-    study = optuna.create_study(direction='maximize', sampler=sampler)
-    study.optimize(oj, n_trials=args.n_trials)
+        # -------------------------
+        # 2. Optuna 설정 및 실행
+        # -------------------------
+        sampler = optuna.samplers.TPESampler()
+        study = optuna.create_study(
+            direction='maximize', sampler=sampler)  # , storage="sqlite:///" + os.path.join(f"{args.root}", "db.sqlite3"))
+        study.optimize(oj, n_trials=args.n_trials)
 
-    # -------------------------
-    # 3. 결과 출력
-    # -------------------------
-    best_trial = study.best_trial
-    print("Best trial:")
-    print(f"  Value(AUROC): {best_trial.value}")
-    print("  Params: ")
-    for key, value in best_trial.params.items():
-        print(f"    {key}: {value}")
+        # -------------------------
+        # 3. 결과 출력
+        # -------------------------
+        best_trial = study.best_trial
+        BEST_ARGS = best_trial.params
+        CURRENT_ARGS = None
 
-    # 실행하는 HPO 프로그램 폴더가 root 라서 json_files/config.json 가 문제없이 동작함
-    with open(os.path.join(args.root, "json_files", "best_metric.json"), "w") as f:
-        json.dump({'best_metric': best_trial.value}, f)
-    with open(os.path.join(args.root, "json_files", "best_params.json"), "w") as f:
-        json.dump(best_trial.params, f)
+        print("Best trial:")
+        print(f"  Value(AUROC): {best_trial.value}")
+        print("  Params: ")
+        for key, value in best_trial.params.items():
+            print(f"    {key}: {value}")
 
-    # 필요하다면 서버를 종료하고 싶을 때
-    # server.shutdown()
+        # 실행하는 HPO 프로그램 폴더가 root 라서 json_files/config.json 가 문제없이 동작함
+        with open(os.path.join(args.root, "json_files", "best_metric.json"), "w") as f:
+            json.dump({'best_metric': best_trial.value}, f)
+        with open(os.path.join(args.root, "json_files", "best_params.json"), "w") as f:
+            json.dump(best_trial.params, f)
+
+        # 필요하다면 서버를 종료하고 싶을 때
+        # server.shutdown()
+        while BEST_ARGS is not None:
+            time.sleep(0.1)
+
+        print("Server closed.")
+
+    except Exception as e:
+        traceback.print_exc()
+        input("Press Enter to exit...")

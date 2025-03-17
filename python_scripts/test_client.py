@@ -24,8 +24,12 @@ def func(**kwargs):
     return auroc  # 이번 trial 에 대한 점수를 구한 후 반환(float)
 
 
-def get_json(server_url):
-    r = requests.get(f"{server_url}/trial", timeout=10)
+def get_json(server_url, category="trial"):
+    if category not in ["trial", "best"]:
+        print(f"[Client] Invalid category: {category}")
+        return None
+
+    r = requests.get(f"{server_url}/{category}", timeout=10)
     if r.status_code != 200:
         # Trial 정보를 못 받으면 더 이상 할 일이 없다고 가정하고 종료
         print("[Client] No more trial or error:", r.text)
@@ -38,6 +42,11 @@ def get_json(server_url):
 
 def post_metric(auroc, server_url):
     print(f"[Client] Computed auroc: {auroc}")
+    if type(auroc) not in [int, float]:
+        print(
+            f"For post_metric function, assign auroc as a float or int, current type: {type(auroc)}")
+        return
+        # 상황에 따라 break 혹은 continue 등 처리
     score_data = {"auroc": auroc}
     r_score = requests.post(
         f"{server_url}/score", json=score_data, timeout=5)
@@ -47,6 +56,9 @@ def post_metric(auroc, server_url):
         print("[Client] Failed to post score:", r_score.text)
         # 상황에 따라 break 혹은 continue 등 처리
         return True
+
+    # 잠시 대기 후 다음 루프(서버가 다음 trial 준비하도록)
+    time.sleep(0.1)
 
     return False
 
@@ -69,12 +81,17 @@ def main():
             if ret:
                 break
 
-            # 잠시 대기 후 다음 루프(서버가 다음 trial 준비하도록)
-            time.sleep(0.1)
-
         except Exception as e:
-            print("[Client] Error occurred:", e)
+            print("[Client] Finished:", e)
             break
+
+    print("[Client] Try the best params.")
+
+    # 최적화 while 문이 종료된 후, category 에 best 를 넣으면 가장 좋은 파라미터를 받아옴
+    trial_params = get_json(server_url, category="best")
+
+    # best 파라미터로 func 실행
+    auroc = func(**trial_params)
 
 
 if __name__ == "__main__":
