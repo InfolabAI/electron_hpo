@@ -1,100 +1,95 @@
 const { app, BrowserWindow, ipcMain, Menu } = require('electron');
-const { pathToFileURL } = require('url');
 const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 const unzipper = require('unzipper');
-const exec = require('util').promisify(require('child_process').exec);
+const util = require('util');
+const exec = util.promisify(require('child_process').exec);
+const { pathToFileURL } = require('url');
 
-
-// statusWindow 모듈 가져오기
 const { openStatusWindow, updateStatusWindow, closeStatusWindow } = require('./statusWindow.js');
 
 const isDev = !app.isPackaged;
-let childProcess = null;
+let hpoProcess = null;      // Python 서버 프로세스
+let dashboardProcess = null;  // optuna-dashboard 프로세스
 
-async function ensurePythonEnv() {
-    // 개발 모드면 압축 해제/빌드 로직 스킵
-    if (isDev) {
-        console.log('[DEBUG] No decompression in development mode');
-        return;
-    }
+/** 공통 경로들(개발/배포) 정리 */
+function getPaths() {
+    const base = isDev ? __dirname : process.resourcesPath;
+    const baseAsar = isDev ? __dirname : path.join(process.resourcesPath, 'app.asar');
+    const pyScripts = path.join(base, 'python_scripts');
+    const zipFile = path.join(base, 'hpo_env_win.zip');
+    const pyEnvDir = path.join(base, 'py_env');
+    // 문제: EXE 빌드시 optuna의 Alembic 폴더가 누락되어 스키마 체크 시 에러 발생(임베디드 python 으로 실행하면 잘됨)
+    // 해결: PyInstaller --add-data 옵션으로 해당 폴더를 포함해줌
+    // 구분자인 ; 는 window 에서만 이거고 linux 에서는 : 이다.
+    //      --add-data "C:\Users\robert.lim\AppData\Local\Programs\HPOptimizer\resources\py_env\Lib\site-packages\optuna\storages\_rdb\alembic;optuna/storages/_rdb/alembic"
+    const alembicDir = path.join(pyEnvDir, 'Lib', 'site-packages', 'optuna', 'storages', '_rdb', 'alembic');
+    const alembicRel = path.join('optuna', 'storages', '_rdb', 'alembic');
+    const forAddData = `${alembicDir};${alembicRel}`;
 
-    // 기본 경로들
-    const mainPath = process.resourcesPath;
-    const zipFilePath = path.join(mainPath, 'hpo_env_win.zip');
-    const targetDir = path.join(mainPath, 'py_env');
-    const pyScriptPath = path.join(mainPath, 'python_scripts');
-    const testLocalServerPath = path.join(pyScriptPath, 'test_local_server.py');
-    const localServerExePath = path.join(pyScriptPath, 'test_local_server.exe');
-    const pythonPath = path.join(targetDir, 'python.exe');
-
-    // 이미 준비돼 있다면 종료
-    if (
-        fs.existsSync(targetDir) &&
-        fs.existsSync(localServerExePath) &&
-        !fs.existsSync(testLocalServerPath)
-    ) {
-        console.log('[INFO] Python env and local server already exist. No action needed.');
-        return;
-    }
-
-    // 상태 창 열기
-    openStatusWindow('<h3>Initializing Environment</h3>');
-
-    // 로그를 남기고 상태창에 표시하는 헬퍼 함수
-    const log = (message) => {
-        console.log(message);
-        updateStatusWindow(message + '<br>');
+    return {
+        base,
+        baseAsar,
+        pyScripts,
+        zipFile,
+        pyEnvDir,
+        testLocalServerPy: path.join(pyScripts, 'test_local_server.py'),
+        testLocalServerExe: path.join(pyScripts, 'test_local_server.exe'),
+        pythonExe: path.join(pyEnvDir, 'python.exe'),
+        jsonFiles: path.join(base, 'json_files'),
+        forAddData
     };
+}
 
-    // 1) Python 환경 압축 해제
-    log('[INFO] Starting to set up the Python environment...');
+/** Python 환경 구성 */
+async function ensurePythonEnv() {
+    if (isDev) {
+        console.log('[DEBUG] 개발 모드 → 압축 해제 스킵');
+        return;
+    }
+
+    const { zipFile, pyEnvDir, testLocalServerPy, testLocalServerExe, pythonExe, forAddData } = getPaths();
+
+    // 이미 구성되어 있다면 종료
+    if (fs.existsSync(pyEnvDir) && fs.existsSync(testLocalServerExe) && !fs.existsSync(testLocalServerPy)) {
+        console.log('[INFO] Python env already set up');
+        return;
+    }
+
+    openStatusWindow('<h3>Initializing Environment</h3>');
+    const log = (msg) => { console.log(msg); updateStatusWindow(msg + '<br>'); };
+
+    // 1) Python 압축 해제
+    log('[INFO] Setup Python environment...');
     try {
-        await fs.createReadStream(zipFilePath)
-            .pipe(unzipper.Extract({ path: targetDir }))
-            .promise();
-        log('[INFO] The Python environment has been successfully set up');
+        await fs.createReadStream(zipFile).pipe(unzipper.Extract({ path: pyEnvDir })).promise();
+        log('[INFO] Python env decompressed');
     } catch (err) {
-        log('[ERROR] Failed to set up the Python environment');
-        console.error(err);
+        log('[ERROR] Decompression failed'); console.error(err);
     }
 
     // 2) PyInstaller 빌드
+    log('[INFO] Building files...');
     try {
-        log('[INFO] Building...');
-        await exec(
-            `"${pythonPath}" -m PyInstaller --onefile --console --distpath "${pyScriptPath}" "${testLocalServerPath}"`
-        );
-        log('[INFO] Successfully built');
-
-        // 빌드 후 사용했던 파이썬 스크립트 제거
-        fs.unlinkSync(testLocalServerPath);
-        log('[INFO] File cleanup completed');
+        await exec(`"${pythonExe}" -m PyInstaller --add-data "${forAddData}" --onefile --console --distpath "${path.dirname(testLocalServerExe)}" "${testLocalServerPy}"`);
+        fs.unlinkSync(testLocalServerPy); // 빌드 후 사용했던 스크립트 제거
+        log('[INFO] Build & cleanup finished');
     } catch (err) {
-        log('[ERROR] Failed to build');
-        console.error('[ERROR] Failed to build with PyInstaller or delete files', err);
+        log('[ERROR] Build failed'); console.error(err);
     }
 
-    // 3) 최종 확인 후 성공 or 실패 로그 + 종료 처리
-    if (
-        fs.existsSync(targetDir) &&
-        fs.existsSync(localServerExePath) &&
-        !fs.existsSync(testLocalServerPath)
-    ) {
-        log('[INFO] (Closing the window in 10 seconds)');
-        setTimeout(() => closeStatusWindow(), 10000);
+    // 3) 최종 확인
+    if (fs.existsSync(pyEnvDir) && fs.existsSync(testLocalServerExe) && !fs.existsSync(testLocalServerPy)) {
+        log('[INFO] Closing window in 10 seconds');
+        setTimeout(closeStatusWindow, 10000);
     } else {
-        log('[ERROR] Required conditions not met. Exiting the Electron app in 10 seconds.');
-        setTimeout(() => {
-            closeStatusWindow();
-            app.quit();
-        }, 10000);
+        log('[ERROR] Setup failed → App quits in 10 seconds');
+        setTimeout(() => { closeStatusWindow(); app.quit(); }, 10000);
     }
 }
 
-
-// 앱 창 생성 함수
+/** 메인 윈도우 생성 */
 function createWindow() {
     const win = new BrowserWindow({
         width: 1000,
@@ -103,277 +98,210 @@ function createWindow() {
             nodeIntegration: false,
             contextIsolation: true,
             preload: path.join(__dirname, 'preload.js'),
-            nodeIntegrationInSubFrames: true, // <webview> 내부 스크립트 허용
-            webviewTag: true  // ← 이걸 반드시 추가해줘야 <webview> 태그가 동작함!
+            nodeIntegrationInSubFrames: true,
+            webviewTag: true
         },
     });
-
     win.loadFile('index.html');
 }
 
-
-
-// 앱 실행 시 Python 환경 체크 후 창 띄우기
+/** 앱 초기화 */
 app.whenReady().then(async () => {
     createWindow();
-
     app.on('activate', () => {
-        if (BrowserWindow.getAllWindows().length === 0) {
-            createWindow();
-        }
+        if (BrowserWindow.getAllWindows().length === 0) createWindow();
     });
 
-    await ensurePythonEnv(); // 압축 해제 (배포 환경에서만)
+    // 배포 환경에서 Python env 구성
+    await ensurePythonEnv();
 
-    const template = [
-        {
-            label: 'File',
-            submenu: [
-                { role: 'quit' }
-            ]
-        },
+    // 실행중인 잔여 프로세스 정리 후 대시보드 실행
+    startOptunaDashboard();
+
+    // 메뉴 템플릿
+    let template = [
+        { label: 'File', submenu: [{ role: 'quit' }] },
         {
             label: 'Help',
             submenu: [
                 {
                     label: 'About This App',
-                    click: () => {
-                        // 여기서 정보 표시 / 새 창 띄우기 등
-                        console.log('Show about info with my name here');
-
-                        // 1) 상태 창 열고 초기 메시지
-                        //openStatusWindow('검사AI개발Task 임희철');
-                    }
+                    click: () => { console.log('Show about info here'); }
                 }
             ]
         },
-        {
+    ];
+    // 개발 모드에서만 DevTools 메뉴
+    if (isDev) {
+        template.push({
             label: 'View',
             submenu: [
                 {
                     label: 'Toggle DevTools',
-                    accelerator: 'Ctrl+Shift+P', // 원하는 키로 변경 가능
+                    accelerator: 'Ctrl+Shift+P',
                     click: (item, focusedWindow) => {
-                        if (focusedWindow) {
-                            focusedWindow.webContents.toggleDevTools();
-                        }
+                        if (focusedWindow) focusedWindow.webContents.toggleDevTools();
                     },
                 },
-                // 다른 메뉴 항목들
             ],
-        },
-    ];
-
-    const menu = Menu.buildFromTemplate(template);
-    Menu.setApplicationMenu(menu);
+        });
+    }
+    Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 });
 
-// 창이 모두 닫히면 앱 종료
+/** 모든 윈도우 닫히면 앱 종료 */
 app.on('window-all-closed', () => {
-    if (process.platform !== 'darwin') {
-        app.quit();
-    }
+    if (process.platform !== 'darwin') app.quit();
 });
 
-// app이 종료되기 직전(모든 윈도우가 닫히거나 quit가 호출되기 직전)
-app.on('before-quit', (event) => {
-    if (childProcess) {
-        // 자식 프로세스 종료
-        childProcess.kill();
-        childProcess = null;
-        console.log("Child process terminated");
-    }
+/** 종료 직전(자식 프로세스 종료) */
+app.on('before-quit', async () => {
+    await kill_pyhpo();
+    await kill_dashboard();
 });
 
-// ----------------------------------------------------------------------------------------
-// 1) Renderer가 "run-command"를 invoke하면, 자식 프로세스를 spawn하고
-//    stdout/stderr 발생 시마다 메인 → 렌더러로 이벤트("command-stdout", "command-stderr")를 보냄
-//    프로세스 종료 시 "command-close" 이벤트 전송
-// ----------------------------------------------------------------------------------------
-ipcMain.handle('run-command', async (event, command, args, n_trials) => {
-    console.log("cmd:", command, "args:", args);
+/** 자식 프로세스 실행 */
+ipcMain.handle('run-command', async (event, _cmd, _args, n_trials) => {
+    await kill_pyhpo();
 
-    if (childProcess) {
-        // 자식 프로세스 종료
-        childProcess.kill();
-        childProcess = null;
-        console.log("Child process terminated");
-    }
-
+    const { testLocalServerPy, testLocalServerExe, base } = getPaths();
+    let command, args;
     if (isDev) {
-        command = path.resolve(__dirname, '..', 'hpo_env_linux', 'bin', 'python');
-        args = [
-            path.resolve(__dirname, 'python_scripts', 'test_local_server.py'),
-            '--root',
-            __dirname
-        ];
+        // Linux python 경로 예시. (적절히 수정)
+        command = 'python';
+        args = [testLocalServerPy, '--root', __dirname];
+    } else {
+        command = testLocalServerExe;
+        args = ['--root', base];
     }
-    else {
+    args.push('--n_trials', n_trials);
 
-        // 기존에 실행된 서버 모두 종료
-        const { exec } = require('child_process');
-        const util = require('util');
-        const execPromise = util.promisify(exec);
-        const processName = 'test_local_server.exe';
+    console.log('Spawn:', command, args);
 
-        try {
-            // 특정 이름을 가진 모든 프로세스 종료 (콜백 없이 사용)
-            const { stdout, stderr } = await execPromise(`taskkill /F /IM ${processName}`);
-            console.log(`[INFO] Killed all processes named "${processName}"`);
-            if (stdout) console.log('stdout:', stdout);
-            if (stderr) console.log('stderr:', stderr);
-        } catch (error) {
-            // 프로세스가 없으면 'ERROR: The process "xxx" not found.' 같은 메시지가 올 수도 있음
-            console.error('[ERROR] Failed to kill process:', error.message);
-        }
-
-        //command = path.resolve(process.resourcesPath, 'py_env', 'Scripts', 'python.exe');
-        command = path.resolve(process.resourcesPath, 'python_scripts', 'test_local_server.exe')
-        args = [
-            '--root',
-            process.resourcesPath,
-        ];
-    }
-
-    args = args.concat(['--n_trials', n_trials]);
-
-    console.log("command", command);
-    console.log("args", args);
-    // if (isDev) {
-    // }
-    // else {
-    //     args.push('--path', 'resources');
-    //     console.log("배포 모드에서는 args에 --path resources 추가");
-    // }
     return new Promise((resolve, reject) => {
         try {
-            // Python 실행
-            const child = spawn(command, args);
-            childProcess = child;
-
-            // stdout 실시간 전송
-            child.stdout.on('data', (data) => {
-                event.sender.send('command-stdout', data.toString());
-            });
-
-            // stderr 실시간 전송
-            child.stderr.on('data', (data) => {
-                event.sender.send('command-stderr', data.toString());
-            });
-
-            child.on('close', (code) => {
-                event.sender.send('command-close', code);
-                resolve({ code });
-            });
-
-            child.on('error', (err) => {
-                event.sender.send('command-error', err.message);
-                reject(err);
-            });
+            hpoProcess = spawn(command, args);
+            hpoProcess.stdout.on('data', (data) => event.sender.send('command-stdout', data.toString()));
+            hpoProcess.stderr.on('data', (data) => event.sender.send('command-stderr', data.toString()));
+            hpoProcess.on('close', (code) => { event.sender.send('command-close', code); resolve({ code }); });
+            hpoProcess.on('error', (err) => { event.sender.send('command-error', err.message); reject(err); });
         } catch (err) {
             reject(err);
         }
     });
 });
 
-// 공통 리소스 경로 반환 함수
-function getPythonScriptsPath() {
-    // 개발 모드 vs. 프로덕션 모드 구분
-    if (isDev) {
-        // 1) 개발 시(__dirname -> 프로젝트 폴더) 
-        //    => "python_scripts" 폴더가 프로젝트 루트/main.js 와 같은 위치에 있는 경우
-        return path.join(__dirname, 'python_scripts');
-    } else {
-        // 2) 프로덕션 빌드 시
-        //    => "python_scripts" 폴더가 extraResources 설정에 의해 
-        //       asar 바깥 (process.resourcesPath/python_scripts)에 배치됨
-        return path.join(process.resourcesPath, 'python_scripts');
-    }
+/** 대시보드 preload 경로 */
+ipcMain.handle('get-dashboard-preload-path', async () => {
+    const { baseAsar } = getPaths();
+    const p = path.join(baseAsar, 'dashboardPreload.js');
+
+    const resolved = pathToFileURL(p).href;
+    console.log('dashboard-preload-path:', resolved);
+    return resolved;
+});
+
+/** optuna-dashboard 실행 */
+function startOptunaDashboard() {
+    const { base, pythonExe } = getPaths();
+    const pythonCmd = isDev ? 'python' : pythonExe;
+
+    // 1) DB 파일의 절대 경로를 만든 뒤, 경로 구분자를 슬래시로 치환
+    let dbPath = path.join(base, 'db.sqlite3');
+    dbPath = dbPath.replace(/\\/g, '/');  // Windows 역슬래시 → 슬래시
+
+    // 2) 최종적인 SQLite 커넥션 문자열
+    const dbUrl = `sqlite:///${dbPath}`;
+
+    // 3) optuna_dashboard 스크립트 작성 (여기 indent 주면 안됨)
+    const dashboardCode = `
+import optuna_dashboard
+optuna_dashboard.run_server('${dbUrl}', host='127.0.0.1', port=8080)
+`;
+
+    // 4) 대시보드 프로세스 스폰
+    dashboardProcess = spawn(pythonCmd, ['-c', dashboardCode]);
+
+    // 콘솔 로깅 (선택)
+    dashboardProcess.stdout.on('data', (data) => console.log('[dashboard]', data.toString()));
+    dashboardProcess.stderr.on('data', (data) => console.error('[dashboard]', data.toString()));
+    dashboardProcess.on('close', (code) => {
+        console.log(`[dashboard] process exited with code=${code}`);
+        dashboardProcess = null;
+    });
+    dashboardProcess.on('error', (err) => {
+        console.error('[dashboard] failed to start:', err);
+    });
 }
 
 
-// 공통 리소스 경로 반환 함수
-function getJSONPath() {
-    // 개발 모드 vs. 프로덕션 모드 구분
-    if (isDev) {
-        // 1) 개발 시(__dirname -> 프로젝트 폴더) 
-        //    => "python_scripts" 폴더가 프로젝트 루트/main.js 와 같은 위치에 있는 경우
-        return path.join(__dirname, 'json_files');
-    } else {
-        // 2) 프로덕션 빌드 시
-        //    => "python_scripts" 폴더가 extraResources 설정에 의해 
-        //       asar 바깥 (process.resourcesPath/python_scripts)에 배치됨
-        return path.join(process.resourcesPath, 'json_files');
+/** 기존 프로세스(서버/대시보드) 종료 */
+async function kill_pyhpo() {
+    if (hpoProcess) {
+        hpoProcess.kill(); hpoProcess = null;
+        console.log('[INFO] Child process terminated');
+    }
+    // 필요하다면 Windows에서 taskkill
+    try {
+        await exec('taskkill /F /IM test_local_server.exe');
+    } catch (error) {
+        console.error('[ERROR] kill process:', error.message);
     }
 }
 
-// config.json 경로
-const configPath = path.join(getJSONPath(), 'config.json');
-console.log("configPath:", configPath);
+/** 기존 프로세스(서버/대시보드) 종료 */
+async function kill_dashboard() {
+    if (dashboardProcess) {
+        dashboardProcess.kill(); dashboardProcess = null;
+        console.log('[INFO] Dashboard process terminated');
+    }
+}
 
-// results.json 경로
-const resultsMetricPath = path.join(getJSONPath(), 'best_metric.json');
-const resultsParamsPath = path.join(getJSONPath(), 'best_params.json');
+/** JSON 관련 함수들 */
+function getJSONPaths() {
+    const p = getPaths().jsonFiles;
+    return {
+        config: path.join(p, 'config.json'),
+        bestMetric: path.join(p, 'best_metric.json'),
+        bestParams: path.join(p, 'best_params.json')
+    };
+}
 
 // config.json 읽기
 ipcMain.handle('load-config', async () => {
-    if (!fs.existsSync(configPath)) {
-        return [];
-    }
-    const data = fs.readFileSync(configPath, 'utf-8');
-    try {
-        return JSON.parse(data);
-    } catch (err) {
-        console.log("Error parsing json", err);
-        return [];
-    }
+    const { config } = getJSONPaths();
+    if (!fs.existsSync(config)) return [];
+    try { return JSON.parse(fs.readFileSync(config, 'utf-8')); }
+    catch (err) { console.error('Parsing config error:', err); return []; }
 });
 
 // config.json 저장
-ipcMain.handle('save-config', async (event, configData) => {
+ipcMain.handle('save-config', async (e, data) => {
+    const { config } = getJSONPaths();
     try {
-        fs.writeFileSync(configPath, JSON.stringify(configData, null, 2), 'utf-8');
+        fs.writeFileSync(config, JSON.stringify(data, null, 2), 'utf-8');
         return true;
     } catch (err) {
-        console.error("Error saving config.json", err);
+        console.error('Saving config.json error:', err);
         throw err;
     }
 });
 
 // results.json 읽기
 ipcMain.handle('load-results', async () => {
-    console.error("Executing load-results");
-    if (!fs.existsSync(resultsMetricPath) || !fs.existsSync(resultsParamsPath)) {
-        return [];
-    }
-    const dataMetric = JSON.parse(fs.readFileSync(resultsMetricPath, 'utf-8'));
-    const dataParams = JSON.parse(fs.readFileSync(resultsParamsPath, 'utf-8'));
-
+    console.error('[INFO] load-results called');
+    const { bestMetric, bestParams } = getJSONPaths();
+    if (!fs.existsSync(bestMetric) || !fs.existsSync(bestParams)) return [];
     try {
+        const dataMetric = JSON.parse(fs.readFileSync(bestMetric, 'utf-8'));
+        const dataParams = JSON.parse(fs.readFileSync(bestParams, 'utf-8'));
         return [
             "Best metric:\n" + JSON.stringify(dataMetric, null, 4),
             "\n",
             "Best params:\n" + JSON.stringify(dataParams, null, 4)
         ];
     } catch (err) {
-        console.log("Error parsing json", err);
+        console.error('Parsing results error:', err);
         return [];
     }
-});
-
-
-// IPC로 렌더러에 경로를 알려주는 예시
-ipcMain.handle('get-dashboard-preload-path', async () => {
-    let PATH = '';
-    // isDev는 이미 어디선가 선언되어 있다고 가정
-    if (isDev) {
-        //path.join(__dirname, 'dashboardPreload.js');
-        PATH = path.join(__dirname, 'dashboardPreload.js');
-    } else {
-        //path.join(process.resourcesPath, 'dashboardPreload.js');
-        PATH = path.join(process.resourcesPath, 'dashboardPreload.js');
-    }
-    PATH = pathToFileURL(PATH).href; // Windows 경로 또는 스페이스 바 있어도 문제없도록 하는 코드. 자동으로 file:// 붙여줌
-    console.log("dashboard-preload-path", PATH);
-    return PATH;
 });

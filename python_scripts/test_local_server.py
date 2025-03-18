@@ -200,7 +200,11 @@ if __name__ == "__main__":
         # -------------------------
         sampler = optuna.samplers.TPESampler()
         study = optuna.create_study(
-            direction='maximize', sampler=sampler)  # , storage="sqlite:///" + os.path.join(f"{args.root}", "db.sqlite3"))
+            direction='maximize', sampler=sampler, storage="sqlite:///" + os.path.join(f"{args.root}", "db.sqlite3"),
+            load_if_exists=True,
+            # 이 문제는 Optuna가 내부적으로 사용하는 Alembic 마이그레이션 스크립트 경로를 Windows 빌드 시(특히 PyInstaller, electron-builder 등으로 패키징될 때) 제대로 찾지 못해서 발생하는 오류입니다.  Ubuntu 환경에서는 문제 없는데 Windows에서만 Path doesn't exist: '.../optuna/storages/_rdb/alembic' 식 오류가 발생하는 것은, 빌드된 실행 파일(_MEI**** 폴더 등) 안에 해당 Alembic 폴더가 누락되거나 잘못된 경로로 들어가 있기 때문입니다. Optuna Storage 생성 시 skip_compatibility_check=True 옵션 사용해서 해결.
+            # skip_compatibility_check=True
+        )
         study.optimize(oj, n_trials=args.n_trials)
 
         # -------------------------

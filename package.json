@@ -24,9 +24,17 @@
       "allowToChangeInstallationDirectory": true
     },
     "files": [
-      "**/*"
+      "**/*",
+      "!db.sqlite3",
+      "!json_files",
+      "!hpo_env_win.zip",
+      "!python_scripts"
     ],
     "extraResources": [
+      {
+        "from": "db.sqlite3",
+        "to": "db.sqlite3"
+      },
       {
         "from": "json_files",
         "to": "json_files"

@@ -1,3 +1,8 @@
+아래 코드에 기능을 넣기 위해 수정이 필요한 부분만 답변해줘.
+- 일렉트론 앱을 실행할 때, optuna-dashboard 를 실행해야 함.
+- "optuna-dashboard sqlite:///../db.sqlite3" 를 python -m 으로 실행해야 됨. 배포판에서는 embedded python 으로 실행해야 하기 때문.
+- 일렉트론 앱을 종료할 때, optuna-dashboard 를 종료해야 함. 종료하지 않으면 다음 실행 시에 포트가 사용중이라고 에러가 발생함.
+
 ## index.html
 ```
 <!DOCTYPE html>
