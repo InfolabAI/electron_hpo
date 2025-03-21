@@ -107,9 +107,9 @@
                 -->
                 <button class="btn btn-primary w-100 d-block mx-auto mb-2" id="btnMain">Main</button>
                 <button class="btn btn-warning w-100 d-block mx-auto mb-2" id="btnSettings">Settings</button>
-                <button class="btn btn-success w-100 d-block mx-auto mb-2" id="btnResults">Results</button>
+                <!--<button class="btn btn-success w-100 d-block mx-auto mb-2" id="btnResults">Results</button>-->
                 <!-- 기존 버튼들 아래에 Dashboard 버튼 하나 추가 -->
-                <button class="btn btn-info w-100 d-block mx-auto mt-2" id="btnDashboard">Dashboard</button>
+                <button class="btn btn-success w-100 d-block mx-auto mt-2" id="btnDashboard">Dashboard</button>
 
             </div>
 
@@ -306,7 +306,7 @@
         // 탭 전환 로직
         const btnMain = document.getElementById("btnMain");
         const btnSettings = document.getElementById("btnSettings");
-        const btnResults = document.getElementById("btnResults");
+        //const btnResults = document.getElementById("btnResults");
         const btnDashboard = document.getElementById("btnDashboard");
         const mainTab = document.getElementById("mainTab");
         const settingsTab = document.getElementById("settingsTab");
@@ -328,14 +328,14 @@
             // 설정 탭 들어갈 때마다 config.json 불러오기
             await loadConfig();
         });
-        btnResults.addEventListener("click", async () => {
-            mainTab.classList.remove("active");
-            settingsTab.classList.remove("active");
-            resultsTab.classList.add("active");
-            dashboardTab.classList.remove("active");
-            // 결과 탭 들어갈 때마다 결과 불러오기
-            await loadResults();
-        });
+        //btnResults.addEventListener("click", async () => {
+        //    mainTab.classList.remove("active");
+        //    settingsTab.classList.remove("active");
+        //    resultsTab.classList.add("active");
+        //    dashboardTab.classList.remove("active");
+        //    // 결과 탭 들어갈 때마다 결과 불러오기
+        //    await loadResults();
+        //});
         // 버튼 클릭 시 다른 탭들의 active 제거 후 dashboardTab에 active 부여
         // 버튼을 클릭했을 때, webview 를 동적으로 만들어야 preloadAbsolutePath(즉, dashboardPreload.js)를 webview 가 정상적으로 열 수 있음
         btnDashboard.addEventListener("click", async () => {
@@ -364,8 +364,13 @@
             webview.style.height = '800px';
             webview.style.border = 'none';
 
+
             // 5) dashboardTab div에 삽입
             dashboardTab.appendChild(webview);
+
+            //webview.addEventListener('dom-ready', () => {
+            //    webview.openDevTools(); // webview 는 개발자 도구를 따로 사용하므로, 필요하다면 여기서 열어줘야 함.
+            //});
 
         });
 
