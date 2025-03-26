@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Electron App with Tabs</title>
+
+    <!-- Bulma CSS CDN -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.4/css/bulma.min.css">
+
+
+    <style>
+        body {
+            margin: 0;
+            font-family: sans-serif;
+        }
+
+        /* 전체 레이아웃: 왼쪽 사이드바, 오른쪽 컨텐츠 */
+        .container {
+            display: flex;
+            height: 100vh;
+        }
+
+        .sidebar {
+            width: 100px;
+            background-color: #f0f0f0;
+            border-right: 1px solid #ccc;
+            display: flex;
+            flex-direction: column;
+            padding: 10px;
+        }
+
+        .sidebar button {
+            margin-bottom: 10px;
+            padding: 10px;
+            cursor: pointer;
+            border: 1px solid #ccc;
+            background-color: #fff;
+        }
+
+        .sidebar button:hover {
+            background-color: #ddd;
+        }
+
+        .content {
+            flex-grow: 1;
+            padding: 20px;
+            overflow: auto;
+        }
+
+        .tab-content {
+            display: none;
+            /* 기본적으로 감춰놓고, 선택된 탭만 표시 */
+        }
+
+        .tab-content.active {
+            display: block;
+            /* 선택된 탭은 보이게 */
+        }
+
+        /* 메인 탭 스타일 */
+        .input-group {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .input-group input {
+            width: 400px;
+            /* 입력창 너비 조정 */
+            padding: 8px;
+            font-size: 16px;
+            flex-grow: 1;
+        }
+
+        .input-group button {
+            margin-left: 10px;
+            padding: 8px 12px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+
+        #output {
+            white-space: pre-wrap;
+            /* 줄바꿈 & 공백 보이기 */
+            background-color: #eee;
+            padding: 10px;
+            margin-top: 20px;
+            border: 1px solid #ccc;
+        }
+
+        /* 설정 탭 스타일 */
+        #settingsTable {
+            border-collapse: collapse;
+            width: 100%;
+            margin-bottom: 10px;
+            /*table-layout: fixed;*/
+        }
+
+        #settingsTable th,
+        #settingsTable td {
+            border: 1px solid #ccc;
+            padding: 5px;
+        }
+
+        #settingsTable th {
+            background-color: #f9f9f9;
+        }
+
+        .remove-row-btn {
+            background-color: #ffdddd;
+            border: 1px solid #ccc;
+            cursor: pointer;
+        }
+
+        .add-row-btn {
+            margin-bottom: 10px;
+            padding: 8px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        /* 기존에 있던 th, td 스타일 등은 그대로 두고, 첫 번째 열(- 박스들)만 가운데 정렬 추가 */
+        #settingsTable td:nth-child(1),
+        #settingsTable th:nth-child(1) {
+            text-align: center;
+        }
+
+        /* 테이블 내의 모든 <input>에 99% 너비 적용 */
+        #settingsTable input {
+            width: 99.5%;
+            box-sizing: border-box;
+            /* 테두리/패딩 포함해서 계산(권장) */
+        }
+
+        /* 테이블 내의 모든 <select>에 99% 너비 적용 */
+        #settingsTable select {
+            width: 99.5%;
+            box-sizing: border-box;
+            /* 테두리/패딩 포함해서 계산(권장) */
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <!-- 왼쪽 사이드바 (column is-narrow) -->
+        <div class="column is-narrow has-background-light p-3" style="border-right: 1px solid #ccc;">
+            <button class="button is-fullwidth mb-2" id="btnMain">메인</button>
+            <button class="button is-fullwidth mb-2" id="btnSettings">설정</button>
+            <button class="button is-fullwidth" id="btnResults">결과</button>
+        </div>
+
+        <!-- 오른쪽 컨텐츠 영역 -->
+        <div class="content">
+            <!-- 메인 탭 내용 -->
+            <div id="mainTab" class="tab-content active">
+                <h1 class="title is-4">Run local command</h1>
+                <div class="field has-addons mb-3">
+                    <div class="control is-expanded">
+                        <input class="input" type="text" id="command"
+                            placeholder="Python path (e.g. /home/run/pyenv/bin/python)" />
+                    </div>
+                    <div class="control">
+                        <button class="button" onclick="selectFile('command')">Browse</button>
+                    </div>
+                </div>
+                <div class="field has-addons mb-3">
+                    <div class="control is-expanded">
+                        <input class="input" type="text" id="args" placeholder="Optuna path (e.g. /home/run/main.py)" />
+                    </div>
+                    <div class="control">
+                        <button class="button" onclick="selectFile('args')">Browse</button>
+                    </div>
+                </div>
+                <button class="button is-primary" id="runBtn">Run</button>
+                <pre id="output" class="mt-3 p-3 has-background-light" style="border: 1px solid #ccc;"></pre>
+            </div>
+
+            <!-- 설정 탭 내용 -->
+            <div id="settingsTab" class="tab-content">
+                <h1 class="title is-4">설정</h1>
+                <button class="button mb-3" id="addRowBtn">+ 행 추가</button>
+                <table id="settingsTable" class="table is-fullwidth is-bordered is-hoverable">
+                    <thead>
+                        <tr>
+                            <th>-</th>
+                            <th>Type</th>
+                            <th>Name</th>
+                            <th colspan="4">Config</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- 동적 행 추가 영역 -->
+                    </tbody>
+                </table>
+                <div>
+                    <button class="button is-success" id="saveBtn">저장</button>
+                    <button class="button is-warning" id="resetBtn">초기화</button>
+                </div>
+            </div>
+
+            <!-- 결과 탭 내용 -->
+            <div id="resultsTab" class="tab-content">
+                <h1 class="title is-4">결과</h1>
+                <pre id="output_ret" class="p-3 has-background-light" style="border: 1px solid #ccc;"></pre>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 탭 전환 로직
+        const btnMain = document.getElementById("btnMain");
+        const btnSettings = document.getElementById("btnSettings");
+        const btnResults = document.getElementById("btnResults");
+        const mainTab = document.getElementById("mainTab");
+        const settingsTab = document.getElementById("settingsTab");
+        const resultsTab = document.getElementById("resultsTab");
+
+        btnMain.addEventListener("click", () => {
+            mainTab.classList.add("active");
+            settingsTab.classList.remove("active");
+            resultsTab.classList.remove("active");
+        });
+        btnSettings.addEventListener("click", async () => {
+            mainTab.classList.remove("active");
+            settingsTab.classList.add("active");
+            resultsTab.classList.remove("active");
+            // 설정 탭 들어갈 때마다 config.json 불러오기
+            await loadConfig();
+        });
+        btnResults.addEventListener("click", async () => {
+            mainTab.classList.remove("active");
+            settingsTab.classList.remove("active");
+            resultsTab.classList.add("active");
+            // 결과 탭 들어갈 때마다 결과 불러오기
+            await loadResults();
+        });
+
+        // ---------------------
+        // 메인 탭 (기존 기능)
+        // ---------------------
+        const runBtn = document.getElementById('runBtn');
+        const cmdInput = document.getElementById('command');
+        const argsInput = document.getElementById('args');
+        const outputArea = document.getElementById('output');
+        const outputRetArea = document.getElementById('output_ret');
+
+        // =============== 실시간 로그를 뿌릴 이벤트 연결 ===============
+        // main -> renderer 통신
+        window.electronAPI.onCommandStdout((data) => {
+            outputArea.textContent += data;  // 그냥 이어붙이면 됨
+        });
+
+        window.electronAPI.onCommandStderr((data) => {
+            // outputArea.textContent += '[ERR] ' + data; // 현재는 에러는 표시 안함
+        });
+
+        window.electronAPI.onCommandClose((code) => {
+            outputArea.textContent += `\n--- Process exited with code: ${code} ---\n`;
+        });
+
+        window.electronAPI.onCommandError((errMsg) => {
+            outputArea.textContent += `[ERROR] ${errMsg}\n`;
+        });
+        // ============================================================
+
+        runBtn.addEventListener('click', async () => {
+            const cmd = cmdInput.value.trim();
+            // 공백으로 구분된 인자를 배열로
+            const args = argsInput.value.trim().split(' ');
+
+            outputArea.textContent = 'Running command...\n';
+
+            try {
+                // 프로세스 시작
+                const result = await window.electronAPI.runCommand(cmd, args);
+                // 여기 도달 시점: 프로세스가 종료된 뒤
+                outputArea.textContent += `\nProcess ended. code=${result.code}\n`;
+            } catch (err) {
+                outputArea.textContent += `\n[ERROR] ${err.message}\n`;
+            }
+        });
+
+
+        function selectFile(inputId) {
+            const inputElement = document.getElementById(inputId);
+            const fileInput = document.createElement("input");
+            fileInput.type = "file";
+            fileInput.style.display = "none";
+
+            fileInput.onchange = function (event) {
+                if (event.target.files.length > 0) {
+                    inputElement.value = event.target.files[0].path;
+                }
+            };
+
+            document.body.appendChild(fileInput);
+            fileInput.click();
+            document.body.removeChild(fileInput);
+        }
+
+        // ---------------------
+        // 설정 탭
+        // ---------------------
+        const addRowBtn = document.getElementById("addRowBtn");
+        const saveBtn = document.getElementById("saveBtn");
+        const resetBtn = document.getElementById("resetBtn");
+        const settingsTableBody = document.querySelector("#settingsTable tbody");
+
+        // 행 추가 버튼 클릭 시
+        addRowBtn.addEventListener("click", () => {
+            addRow();
+        });
+
+        // 초기화 버튼 클릭 시
+        resetBtn.addEventListener("click", () => {
+            settingsTableBody.innerHTML = ""; // 테이블 초기화
+        });
+
+        // 저장 버튼 클릭 시
+        saveBtn.addEventListener("click", async () => {
+            // 테이블 내용을 JSON 형태로 추출
+            const data = tableToJson();
+            // IPC로 main process에 저장 요청
+            await window.electronAPI.saveConfig(data);
+            alert("저장 완료!");
+        });
+
+        // 설정 탭 들어갈 때 불러오기
+        async function loadConfig() {
+            try {
+                const configData = await window.electronAPI.loadConfig();
+                // configData가 배열 형태라고 가정 ([{type:'int', ...}, ...])
+                settingsTableBody.innerHTML = ""; // 초기화
+                configData.forEach(rowData => {
+                    addRow(rowData);
+                });
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        // 결과 불러오기
+        async function loadResults() {
+            try {
+                outputRetArea.textContent = '';
+                const retData = await window.electronAPI.loadResults();
+                console.log("retData", retData)
+                // configData가 배열 형태라고 가정 ([{type:'int', ...}, ...])
+                retData.forEach(rowData => {
+                    // output_ret 에 추가
+                    outputRetArea.textContent += rowData + '\n';
+                });
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        // 테이블에 행 추가하는 함수
+        function addRow(rowData = null) {
+            /* rowData = {
+                 type: 'int'|'float'|'category',
+                 min: ...,
+                 max: ...,
+                 step: ...,
+                 log: 'Log scale'|'Linear',
+                 categories: 'cat1,cat2,...'
+               } 
+               또는 없는 경우(초기)는 null
+            */
+
+            const tr = document.createElement("tr");
+
+            // 1) 삭제 버튼 셀
+            const tdRemove = document.createElement("td");
+            const removeBtn = document.createElement("button");
+            removeBtn.className = "remove-row-btn";
+            removeBtn.textContent = "-";
+            removeBtn.addEventListener("click", () => {
+                tr.remove();
+            });
+            tdRemove.appendChild(removeBtn);
+            tr.appendChild(tdRemove);
+
+            // 2) 타입 선택 셀
+            const tdType = document.createElement("td");
+            const selectType = document.createElement("select");
+            const optionInt = new Option("int", "int");
+            const optionFloat = new Option("float", "float");
+            const optionCategory = new Option("category", "category");
+
+            selectType.add(optionInt);
+            selectType.add(optionFloat);
+            selectType.add(optionCategory);
+
+            // 기본값 설정
+            if (rowData && rowData.type) {
+                selectType.value = rowData.type;
+            }
+
+            // 타입 변화시 동적으로 다음 칸들 구성 변경
+            selectType.addEventListener("change", () => {
+                renderDynamicCells(tr, selectType.value, rowData);
+            });
+
+            tdType.appendChild(selectType);
+            tr.appendChild(tdType);
+
+            // 우선 tr을 tbody에 추가해놓고, 타입에 맞는 칸을 그리도록
+            settingsTableBody.appendChild(tr);
+
+            // 타입에 맞는 동적 칸 그리기
+            renderDynamicCells(tr, selectType.value, rowData);
+        }
+
+        function renderDynamicCells(tr, typeValue, rowData) {
+            // 타입 셀 뒤에 존재하는 다른 셀들은 모두 제거한 뒤 다시 생성
+            // (int/float/category 중 변경 가능하므로)
+            // 첫 번째(tdRemove) + 두 번째(tdType) 셀을 제외하고 모두 제거
+            while (tr.cells.length > 2) {
+                tr.removeChild(tr.lastChild);
+            }
+
+            // rowData가 없다면 새로 추가. 있으면 해당 값 활용
+            rowData = rowData || {};
+
+            if (typeValue === "int" || typeValue === "float") {
+                // 이름
+                const tdName = document.createElement("td");
+                const inputName = document.createElement("input");
+                registerBlurValidator(inputName, hasSpecialChar, '숫자, 알파벳 및 언더바(_) 만 허용됩니다.');
+                inputName.type = "text";
+                inputName.placeholder = "argument name";
+                if (rowData.name !== undefined) inputName.value = rowData.name;
+                tdName.appendChild(inputName);
+                tr.appendChild(tdName);
+
+                // 최소값
+                const tdMin = document.createElement("td");
+                const inputMin = document.createElement("input");
+                if (typeValue === "float") registerBlurValidator(inputMin, isNotFloat, '값은 float 이어야 합니다!');
+                if (typeValue === "int") registerBlurValidator(inputMin, isNotInt, '값은 마침표(.) 가 없는 int 이어야 합니다!');
+                inputMin.type = "text";
+                inputMin.placeholder = "min";
+                if (rowData.min !== undefined) inputMin.value = rowData.min;
+                tdMin.appendChild(inputMin);
+                tr.appendChild(tdMin);
+
+                // 최대값
+                const tdMax = document.createElement("td");
+                const inputMax = document.createElement("input");
+                if (typeValue === "float") registerBlurValidator(inputMax, isNotFloat, '값은 float 이어야 합니다!');
+                if (typeValue === "int") registerBlurValidator(inputMax, isNotInt, '값은 마침표(.) 가 없는 int 이어야 합니다!');
+                inputMax.type = "text";
+                inputMax.placeholder = "max";
+                if (rowData.max !== undefined) inputMax.value = rowData.max;
+                tdMax.appendChild(inputMax);
+                tr.appendChild(tdMax);
+
+                // 스텝값
+                const tdStep = document.createElement("td");
+                const inputStep = document.createElement("input");
+                if (typeValue === "float") registerBlurValidator(inputStep, isNotFloat, '값은 float 이어야 합니다!');
+                if (typeValue === "int") registerBlurValidator(inputStep, isNotInt, '값은 마침표(.) 가 없는 int 이어야 합니다!');
+                inputStep.type = "text";
+                inputStep.placeholder = "step";
+                if (rowData.step !== undefined) inputStep.value = rowData.step;
+                tdStep.appendChild(inputStep);
+                tr.appendChild(tdStep);
+
+                // Log 여부
+                const tdLog = document.createElement("td");
+                const selectLog = document.createElement("select");
+                selectLog.add(new Option("log scale"));
+                selectLog.add(new Option("linear"));
+                // selectLog.add(new Option("Log scale", "Linear"));
+                // 기본값
+                selectLog.value = rowData.log || "linear";
+                tdLog.appendChild(selectLog);
+                tr.appendChild(tdLog);
+            }
+            else if (typeValue === "category") {
+                // 이름
+                const tdName = document.createElement("td");
+                const inputName = document.createElement("input");
+                registerBlurValidator(inputName, hasSpecialChar, '숫자, 알파벳 및 언더바(_) 만 허용됩니다.');
+                inputName.type = "text";
+                inputName.placeholder = "argument name";
+                if (rowData.name !== undefined) inputName.value = rowData.name;
+                tdName.appendChild(inputName);
+                tr.appendChild(tdName);
+
+                // , 로 구분되는 하나의 string
+                const tdCat = document.createElement("td");
+                const inputCat = document.createElement("input");
+                tdCat.colSpan = 4; // int/float 대비해서 4칸을 합쳐도 됨(선택사항)
+                registerBlurValidator(inputCat, hasSpecialCharExComma, '숫자, 알파벳, 언더바(_) 및 콤마(,) 만 허용됩니다.');
+                inputCat.type = "text";
+                inputCat.placeholder = "cat1,cat2,cat3";
+                if (rowData.categories !== undefined) inputCat.value = rowData.categories;
+                tdCat.appendChild(inputCat);
+                tr.appendChild(tdCat);
+            }
+        }
+
+        // 테이블 내용을 JSON 형태로 추출
+        function tableToJson() {
+            const rows = settingsTableBody.querySelectorAll("tr");
+            const result = [];
+
+            rows.forEach(tr => {
+                const cells = tr.querySelectorAll("td");
+                // 첫 번째 셀은 '-'버튼, 두 번째 셀은 'type' select
+                const typeSelect = cells[1].querySelector("select");
+                const typeValue = typeSelect.value;
+
+                let rowData = { type: typeValue };
+
+                if (typeValue === "int" || typeValue === "float") {
+                    // 4칸: min, max, step, log
+                    const inputName = cells[2].querySelector("input");
+                    const inputMin = cells[3].querySelector("input");
+                    const inputMax = cells[4].querySelector("input");
+                    const inputStep = cells[5].querySelector("input");
+                    const selectLog = cells[6].querySelector("select");
+
+                    rowData.name = inputName.value;
+                    rowData.min = inputMin.value;
+                    rowData.max = inputMax.value;
+                    rowData.step = inputStep.value;
+                    rowData.log = selectLog.value;
+                } else if (typeValue === "category") {
+                    // 1칸: categories
+                    // category 칸을 colspan=4 했다고 가정
+                    const inputName = cells[2].querySelector("input");
+                    const inputCat = cells[3].querySelector("input");
+                    rowData.name = inputName.value;
+                    rowData.categories = inputCat.value;
+                }
+
+                result.push(rowData);
+            });
+            return result;
+        }
+
+
+        /**
+         * 일정 시간(duration ms) 동안 화면에 메시지를 띄우고,
+         * 시간이 지나면 자동으로 제거하는 함수
+         */
+        function showTemporaryMessage(message, duration = 3000) {
+            const div = document.createElement('div');
+            div.textContent = message;
+            Object.assign(div.style, {
+                position: 'fixed',
+                top: '10px',
+                right: '10px',
+                backgroundColor: 'rgba(255, 0, 0, 0.7)',
+                color: '#fff',
+                padding: '10px',
+                borderRadius: '4px',
+                zIndex: 9999
+            });
+            document.body.appendChild(div);
+
+            setTimeout(() => {
+                div.remove();
+            }, duration);
+        }
+
+        /**
+         * 특정 input 요소(el)에 대해 blur 시 validatorFn을 검사.
+         * - 조건 실패 시, 3초 짜리 안내 메시지를 띄우고 focus를 다시 el로 이동
+         * - message: 조건이 안 맞을 때 띄울 안내문
+         */
+        function registerBlurValidator(el, validatorFn, message) {
+            el.addEventListener('blur', () => {
+                if (validatorFn(el.value) && el.value !== '') {
+                    // Blur 이벤트 직후에 곧바로 메시지를 띄우면 환경에 따라 포커스 문제가 생길 수 있으므로
+                    // setTimeout(…, 0)을 이용해 이벤트 루프가 한 번 돌고 난 뒤에 메시지를 띄움
+                    setTimeout(() => {
+                        showTemporaryMessage(message, 3000);
+                        el.value = ''; // 잘못된 값 제거
+                        el.focus();
+                    }, 0);
+                }
+            });
+        }
+
+        /**
+         * 1) 값이 float 이 아니면 true
+         *  - JavaScript에서는 정수/실수 구분 없이 모두 Number지만,
+         *    "유효한 실수 형태인가?"를 간단히 parseFloat 검사로 봅니다.
+         */
+        function isNotFloat(value) {
+            // case1) 이미 number 타입일 경우 → NaN이 아니면 float 가능
+            if (typeof value === 'number') {
+                return isNaN(value); // NaN이면 true, 아니면 false
+            }
+            // case2) 문자열인 경우
+            if (typeof value === 'string') {
+                // parseFloat 결과가 NaN이면 float 불가능
+                const parsed = parseFloat(value);
+                return isNaN(parsed);
+            }
+            // 그 외 타입은 float로 볼 수 없으니 true
+            return true;
+        }
+
+        /**
+        * 2) 값이 int 가 아니면 true
+        *  - "정수 형태인가?"를 Number.isInteger로 검사
+        */
+        function isNotInt(value) {
+            // (1) 소수점 기호 '.' 이 문자열에 포함되어 있으면 "정수 아님"
+            if (typeof value === 'number') {
+                return !Number.isInteger(value); // 정수면 false, 아니면 true
+            }
+            if (typeof value === 'string') {
+                if (value.includes('.')) {
+                    return true;
+                }
+                const parsed = Number(value);
+                // parse가 NaN이 아니고 정수인지 확인
+                return isNaN(parsed) || !Number.isInteger(parsed);
+            }
+            // 그 외 타입은 int로 볼 수 없으니 true
+            return true;
+        }
+
+        /**
+        * 3) 값이 string 이 아니면 true
+        */
+        function isNotString(value) {
+            return typeof value !== 'string';
+        }
+
+        /**
+         * hasSpecialCharExceptUnderscore:
+         *   '_'(언더스코어)를 제외한 특수문자가 하나라도 있으면 true
+         *   - [0-9], [A-Za-z], '_' 이외의 어떤 문자라도 존재하면 true
+         */
+        function hasSpecialChar(value) {
+            const str = String(value);
+            // [^0-9A-Za-z_] : 허용되지 않은 문자들을 찾는 정규식
+            return /[^0-9A-Za-z_]/.test(str);
+        }
+
+        /**
+         * hasSpecialCharExceptUnderscore:
+         *   '_'(언더스코어)를 제외한 특수문자가 하나라도 있으면 true
+         *   - [0-9], [A-Za-z], '_', ',' 이외의 어떤 문자라도 존재하면 true
+         */
+        function hasSpecialCharExComma(value) {
+            const str = String(value);
+            // [^0-9A-Za-z_,] : 허용되지 않은 문자들을 찾는 정규식
+            return /[^0-9A-Za-z_,]/.test(str);
+        }
+
+    </script>
+</body>
+
+</html>
