@@ -220,7 +220,7 @@ async function manageLicense() {
         // 라이센스가 유효하지 않은 경우 에러 창 표시
         const licenseWindow = new BrowserWindow({
             width: 450,
-            height: 350,
+            height: 300,
             alwaysOnTop: true,
             resizable: false,
             frame: false,  // true에서 false로 변경
@@ -308,7 +308,7 @@ async function manageLicense() {
     return new Promise((resolve) => {
         const licenseInfoWindow = new BrowserWindow({
             width: 450,
-            height: 350,
+            height: 300,
             alwaysOnTop: true,
             resizable: false,
             frame: false,  // true에서 false로 변경
