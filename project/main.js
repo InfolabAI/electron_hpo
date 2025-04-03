@@ -18,6 +18,7 @@ let dashboardProcess = null;  // optuna-dashboard 프로세스
 function getPaths() {
     const base = isDev ? __dirname : process.resourcesPath;
     const baseAsar = isDev ? __dirname : path.join(process.resourcesPath, 'app.asar');
+    const DevPyScripts = path.join(base, 'python_scripts', 'test_local_server.py');
     const pyScripts = path.join(base, 'scripts');
     const zipFile = path.join(base, 'hpo_env_win.zip');
     const pyEnvDir = path.join(base, 'py_env');
@@ -35,6 +36,7 @@ function getPaths() {
         pyScripts,
         zipFile,
         pyEnvDir,
+        DevPyScripts,
         testLocalServerPy: path.join(pyScripts, 'tls.dll'),
         testLocalServerExe: path.join(pyScripts, 'tls.exe'),
         pythonExe: path.join(pyEnvDir, 'python.exe'),
@@ -113,13 +115,13 @@ function startLocalServer() {
     // 기존 프로세스 종료
     kill_pyhpo();
 
-    const { testLocalServerPy, testLocalServerExe, base } = getPaths();
+    const { DevPyScripts, testLocalServerExe, base } = getPaths();
     let command, args;
 
     if (isDev) {
         // 개발 모드 - Python 스크립트 직접 실행
         command = 'python';
-        args = [testLocalServerPy, '--root', __dirname];
+        args = [DevPyScripts, '--root', __dirname];
     } else {
         // 배포 모드 - EXE 파일 실행
         command = testLocalServerExe;
