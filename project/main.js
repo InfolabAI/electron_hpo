@@ -75,7 +75,14 @@ async function ensurePythonEnv() {
     // 2) PyInstaller 빌드
     log('[INFO] Building files...');
     try {
-        await exec(`"${pythonExe}" -m PyInstaller --add-data "${forAddData}" --onefile --console --distpath "${path.dirname(testLocalServerExe)}" "${testLocalServerPy}"`);
+        // 작업 디렉토리를 testLocalServerPy가 있는 디렉토리로 설정
+        const workingDirectory = path.dirname(testLocalServerPy);
+
+        await exec(
+            `"${pythonExe}" -m PyInstaller --add-data "${forAddData}" --onefile --console --distpath "${path.dirname(testLocalServerExe)}" "${testLocalServerPy}"`,
+            { cwd: workingDirectory }
+        );
+
         fs.unlinkSync(testLocalServerPy); // 빌드 후 사용했던 스크립트 제거
         log('[INFO] Build & cleanup finished');
     } catch (err) {
@@ -143,13 +150,18 @@ function startLocalServer() {
         // 실행 옵션 설정
         const options = {
             env,
-            cwd: base,  // 작업 디렉토리를 base로 설정
+            cwd: path.dirname(command), // 실행 파일이 있는 디렉토리로 변경
             windowsHide: true,
             stdio: 'pipe'
         };
 
         // 프로세스 생성
         hpoProcess = spawn(command, args, options);
+
+        // 재시도 횟수를 프로세스 객체가 아닌 외부 변수로 관리
+        if (!global.serverRetryCount) {
+            global.serverRetryCount = 0;
+        }
 
         // stdout
         hpoProcess.stdout.on('data', (data) => {
@@ -174,14 +186,19 @@ function startLocalServer() {
             console.log(`[local-server] process exited with code=${code}`);
 
             // 비정상 종료 시 재시도 (최대 3회)
-            if (code !== 0 && !isDev && !hpoProcess._retryCount) {
-                hpoProcess._retryCount = (hpoProcess._retryCount || 0) + 1;
+            if (code !== 0 && !isDev) {
+                global.serverRetryCount++;
+                console.log(`[INFO] Server retry count: ${global.serverRetryCount}`);
 
-                if (hpoProcess._retryCount <= 3) {
-                    console.log(`[INFO] Retrying server start (attempt ${hpoProcess._retryCount})...`);
+                if (global.serverRetryCount <= 3) {
+                    console.log(`[INFO] Retrying server start (attempt ${global.serverRetryCount})...`);
                     setTimeout(() => startLocalServer(), 1000);
                 } else {
                     console.error('[ERROR] Failed to start server after multiple attempts');
+                    // 사용자에게 오류 알림
+                    dialog.showErrorBox('Server Error',
+                        'Failed to start the local server after multiple attempts. The application may not function correctly.');
+                    global.serverRetryCount = 0; // 재설정
                 }
             }
         });
@@ -406,17 +423,18 @@ app.whenReady().then(async () => {
             return; // 라이센스가 유효하지 않으면 여기서 종료
         }
 
-        const mainWindow = createWindow();
-        app.on('activate', () => {
-            if (BrowserWindow.getAllWindows().length === 0) createWindow();
-        });
-
         // 배포 환경에서 Python env 구성
         await ensurePythonEnv();
 
         // 실행중인 잔여 프로세스 정리 및 서버 시작
         startLocalServer();  // 로컬 서버 시작 (추가)
         startOptunaDashboard();  // 대시보드 시작
+
+        const mainWindow = createWindow();
+        app.on('activate', () => {
+            if (BrowserWindow.getAllWindows().length === 0) createWindow();
+        });
+
     } catch (error) {
         console.error('Initialization error:', error);
         dialog.showErrorBox('Initialization Error',
