@@ -25,11 +25,9 @@
 
 #include "json.hpp"
 #include <string>
-#include <utility>
 
 // DLL(또는 So)로 내보낼 함수들에 CLIENT_API 매크로 사용
 CLIENT_API size_t WriteCallback(void *contents, size_t size, size_t nmemb, void *userp);
-CLIENT_API double func(const nlohmann::json &params);
-CLIENT_API std::pair<std::string, nlohmann::json> get_trial_params(const std::string &server_url, const std::string &study_id = "", int max_retries = 3);
-CLIENT_API bool submit_score(const std::string &server_url, const std::string &study_id, double score, int max_retries = 3);
-CLIENT_API nlohmann::json get_best_params(const std::string &server_url, const std::string &study_id, int max_retries = 3);
+CLIENT_API double func(const nlohmann::json &trial_params);
+CLIENT_API nlohmann::json get_json(const std::string &server_url, const std::string &category = "trial");
+CLIENT_API bool post_metric(double auroc, const std::string &server_url);

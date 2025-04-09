@@ -3,17 +3,23 @@
 #include <string>
 #include <thread>
 #include <chrono>
+#include <random>
+#include <cmath>
 #include "json.hpp"
 #ifdef _WIN32
-// 윈도우: 로컬 폴더의 curl 헤더
+// Windows: curl header from local folder
 #include "libs/curl/curl.h"
 #else
-// 리눅스: 시스템에 설치된 curl 헤더
+// Linux: curl header from system installation
 #include <curl/curl.h>
 #endif
 
+// For command line argument parsing
+#include <vector>
+#include <algorithm>
+
 // =============================================
-// libcurl로 데이터를 받기 위해 필요한 콜백 함수
+// Callback function needed to receive data with libcurl
 // =============================================
 size_t WriteCallback(void *contents, size_t size, size_t nmemb, void *userp)
 {
@@ -24,20 +30,24 @@ size_t WriteCallback(void *contents, size_t size, size_t nmemb, void *userp)
 }
 
 // =============================================
-// trial_params를 받아서 auroc를 계산하는 예시 함수
+// Example function for model training + validation score calculation
 // =============================================
-double func(const nlohmann::json &trial_params)
+double func(const nlohmann::json &params)
 {
+    /*
+    Example function for model training + validation score calculation
+    In practice, this section would contain the model training and evaluation code
+    */
     double lr = 0.1;
     std::string arc = "mm";
 
-    if (trial_params.contains("lr") && trial_params["lr"].is_number())
+    if (params.contains("lr") && params["lr"].is_number())
     {
-        lr = trial_params["lr"].get<double>();
+        lr = params["lr"].get<double>();
     }
-    if (trial_params.contains("arc") && trial_params["arc"].is_string())
+    if (params.contains("arc") && params["arc"].is_string())
     {
-        arc = trial_params["arc"].get<std::string>();
+        arc = params["arc"].get<std::string>();
     }
 
     double base_score = 0.8;
@@ -49,126 +59,258 @@ double func(const nlohmann::json &trial_params)
 }
 
 // =============================================
-// 서버에서 Trial 정보를 GET으로 가져옴
+// Request new trial parameters from server
 // =============================================
-nlohmann::json get_json(const std::string &server_url, const std::string &category)
+std::pair<std::string, nlohmann::json> get_trial_params(const std::string &server_url, const std::string &study_id, int max_retries)
 {
-    nlohmann::json trial_params;
-
-    if (category != "trial" && category != "best")
-    {
-        std::cerr << "[Client] Invalid category: " << category << std::endl;
-        return trial_params;
+    /*
+    Request new trial parameters from server
+    If study_id is empty, the server will create a new study_id and return it
+    */
+    std::string endpoint = server_url + "/trial";
+    if (!study_id.empty()) {
+        endpoint += "?study_id=" + study_id;
     }
 
-    CURL *curl = curl_easy_init();
-    if (!curl)
-    {
-        std::cerr << "[Client] curl init failed." << std::endl;
-        return trial_params;
-    }
+    std::string received_study_id;
+    nlohmann::json params;
 
-    std::string url = server_url + "/" + category;
-    curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
-    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 10L);
+    for (int retry = 0; retry < max_retries; retry++) {
+        std::cout << "[Client] Requesting new trial parameters... (attempt " << (retry + 1) << "/" << max_retries << ")" << std::endl;
 
-    std::string readBuffer;
-    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
-    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &readBuffer);
+        CURL *curl = curl_easy_init();
+        if (!curl) {
+            std::cerr << "[Client] curl init failed." << std::endl;
+            continue;
+        }
 
-    CURLcode res = curl_easy_perform(curl);
-    if (res != CURLE_OK)
-    {
-        std::cerr << "[Client] curl GET error: " << curl_easy_strerror(res) << std::endl;
+        curl_easy_setopt(curl, CURLOPT_URL, endpoint.c_str());
+        curl_easy_setopt(curl, CURLOPT_TIMEOUT, 10L);
+
+        std::string readBuffer;
+        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
+        curl_easy_setopt(curl, CURLOPT_WRITEDATA, &readBuffer);
+
+        CURLcode res = curl_easy_perform(curl);
+        if (res != CURLE_OK) {
+            std::cerr << "[Client] Error during request: " << curl_easy_strerror(res) << std::endl;
+            curl_easy_cleanup(curl);
+            
+            // Retry if not the last attempt
+            if (retry < max_retries - 1) {
+                std::random_device rd;
+                std::mt19937 gen(rd());
+                std::uniform_real_distribution<> dis(0.5, 1.0);
+                double random_factor = dis(gen);
+                double wait_time = std::pow(2, retry) * random_factor;
+                
+                std::cout << "[Client] Retrying in " << wait_time << " seconds..." << std::endl;
+                std::this_thread::sleep_for(std::chrono::duration<double>(wait_time));
+            }
+            continue;
+        }
+
+        long response_code = 0;
+        curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &response_code);
         curl_easy_cleanup(curl);
-        return trial_params;
-    }
 
-    long response_code = 0;
-    curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &response_code);
-
-    if (response_code == 200)
-    {
-        try
-        {
-            trial_params = nlohmann::json::parse(readBuffer);
-            std::cout << "[Client] Received trial params: " << trial_params.dump() << std::endl;
+        if (response_code == 200) {
+            try {
+                nlohmann::json response_json = nlohmann::json::parse(readBuffer);
+                received_study_id = response_json["study_id"].get<std::string>();
+                params = response_json["params"];
+                
+                std::cout << "[Client] Successfully received new trial parameters: study_id=" << received_study_id 
+                          << ", params=" << params.dump() << std::endl;
+                
+                return {received_study_id, params};
+            }
+            catch (const std::exception &e) {
+                std::cerr << "[Client] JSON parsing error: " << e.what() << std::endl;
+            }
+        } else {
+            std::cerr << "[Client] Failed to request parameters: HTTP " << response_code << " - " << readBuffer << std::endl;
         }
-        catch (const std::exception &e)
-        {
-            std::cerr << "[Client] JSON parse error: " << e.what() << std::endl;
+
+        // Retry if not the last attempt
+        if (retry < max_retries - 1) {
+            std::random_device rd;
+            std::mt19937 gen(rd());
+            std::uniform_real_distribution<> dis(0.5, 1.0);
+            double random_factor = dis(gen);
+            double wait_time = std::pow(2, retry) * random_factor;
+            
+            std::cout << "[Client] Retrying in " << wait_time << " seconds..." << std::endl;
+            std::this_thread::sleep_for(std::chrono::duration<double>(wait_time));
         }
     }
-    else
-    {
-        std::cerr << "[Client] No more trial or error: " << readBuffer << std::endl;
-    }
 
-    curl_easy_cleanup(curl);
-    return trial_params;
+    std::cout << "[Client] Maximum retry attempts exceeded, failed to request parameters" << std::endl;
+    return {"", nlohmann::json()};
 }
 
 // =============================================
-// auroc를 서버에 POST로 전송
+// Submit trial result score to server
 // =============================================
-bool post_metric(double auroc, const std::string &server_url)
+bool submit_score(const std::string &server_url, const std::string &study_id, double score, int max_retries)
 {
-    std::cout << "[Client] Computed auroc: " << auroc << std::endl;
+    /*
+    Submit trial result score to server
+    */
+    std::string endpoint = server_url + "/score?study_id=" + study_id;
+    nlohmann::json payload;
+    payload["score"] = score;
+    std::string jsonStr = payload.dump();
 
-    nlohmann::json score_data;
-    score_data["auroc"] = auroc;
-    std::string jsonStr = score_data.dump();
+    for (int retry = 0; retry < max_retries; retry++) {
+        std::cout << "[Client] Submitting score: score=" << score << ", study_id=" << study_id 
+                  << " (attempt " << (retry + 1) << "/" << max_retries << ")" << std::endl;
 
-    CURL *curl = curl_easy_init();
-    if (!curl)
-    {
-        std::cerr << "[Client] curl init failed." << std::endl;
-        return true; // 실패
-    }
+        CURL *curl = curl_easy_init();
+        if (!curl) {
+            std::cerr << "[Client] curl init failed." << std::endl;
+            continue;
+        }
 
-    std::string url = server_url + "/score";
-    curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
-    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 5L);
-    curl_easy_setopt(curl, CURLOPT_POST, 1L);
+        curl_easy_setopt(curl, CURLOPT_URL, endpoint.c_str());
+        curl_easy_setopt(curl, CURLOPT_TIMEOUT, 10L);
+        curl_easy_setopt(curl, CURLOPT_POST, 1L);
 
-    struct curl_slist *headers = nullptr;
-    headers = curl_slist_append(headers, "Content-Type: application/json");
-    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+        struct curl_slist *headers = nullptr;
+        headers = curl_slist_append(headers, "Content-Type: application/json");
+        curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
 
-    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, jsonStr.c_str());
+        curl_easy_setopt(curl, CURLOPT_POSTFIELDS, jsonStr.c_str());
 
-    std::string readBuffer;
-    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
-    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &readBuffer);
+        std::string readBuffer;
+        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
+        curl_easy_setopt(curl, CURLOPT_WRITEDATA, &readBuffer);
 
-    CURLcode res = curl_easy_perform(curl);
-    bool result = false;
+        CURLcode res = curl_easy_perform(curl);
+        if (res != CURLE_OK) {
+            std::cerr << "[Client] Error during request: " << curl_easy_strerror(res) << std::endl;
+            curl_slist_free_all(headers);
+            curl_easy_cleanup(curl);
+            
+            // Retry if not the last attempt
+            if (retry < max_retries - 1) {
+                std::random_device rd;
+                std::mt19937 gen(rd());
+                std::uniform_real_distribution<> dis(0.5, 1.0);
+                double random_factor = dis(gen);
+                double wait_time = std::pow(2, retry) * random_factor;
+                
+                std::cout << "[Client] Retrying in " << wait_time << " seconds..." << std::endl;
+                std::this_thread::sleep_for(std::chrono::duration<double>(wait_time));
+            }
+            continue;
+        }
 
-    if (res != CURLE_OK)
-    {
-        std::cerr << "[Client] Failed to POST score: "
-                  << curl_easy_strerror(res) << std::endl;
-        result = true; // 실패
-    }
-    else
-    {
         long response_code = 0;
         curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &response_code);
-        if (response_code == 200)
-        {
-            std::cout << "[Client] Score posted successfully." << std::endl;
+        curl_slist_free_all(headers);
+        curl_easy_cleanup(curl);
+
+        if (response_code == 200) {
+            std::cout << "[Client] Score submission successful!" << std::endl;
+            return true;
+        } else {
+            std::cerr << "[Client] Score submission failed: HTTP " << response_code << " - " << readBuffer << std::endl;
         }
-        else
-        {
-            std::cerr << "[Client] Failed to post score: " << readBuffer << std::endl;
-            result = true;
+
+        // Retry if not the last attempt
+        if (retry < max_retries - 1) {
+            std::random_device rd;
+            std::mt19937 gen(rd());
+            std::uniform_real_distribution<> dis(0.5, 1.0);
+            double random_factor = dis(gen);
+            double wait_time = std::pow(2, retry) * random_factor;
+            
+            std::cout << "[Client] Retrying in " << wait_time << " seconds..." << std::endl;
+            std::this_thread::sleep_for(std::chrono::duration<double>(wait_time));
         }
     }
 
-    // 잠시 대기 후 다음 루프
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    std::cout << "[Client] Maximum retry attempts exceeded, failed to submit score" << std::endl;
+    return false;
+}
 
-    curl_slist_free_all(headers);
-    curl_easy_cleanup(curl);
-    return result; // true면 실패
+// =============================================
+// Request best parameters from server
+// =============================================
+nlohmann::json get_best_params(const std::string &server_url, const std::string &study_id, int max_retries)
+{
+    /*
+    Request best parameters from server
+    */
+    std::string endpoint = server_url + "/best?study_id=" + study_id;
+
+    for (int retry = 0; retry < max_retries; retry++) {
+        std::cout << "[Client] Requesting best parameters... (attempt " << (retry + 1) << "/" << max_retries << ")" << std::endl;
+
+        CURL *curl = curl_easy_init();
+        if (!curl) {
+            std::cerr << "[Client] curl init failed." << std::endl;
+            continue;
+        }
+
+        curl_easy_setopt(curl, CURLOPT_URL, endpoint.c_str());
+        curl_easy_setopt(curl, CURLOPT_TIMEOUT, 10L);
+
+        std::string readBuffer;
+        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
+        curl_easy_setopt(curl, CURLOPT_WRITEDATA, &readBuffer);
+
+        CURLcode res = curl_easy_perform(curl);
+        if (res != CURLE_OK) {
+            std::cerr << "[Client] Error during request: " << curl_easy_strerror(res) << std::endl;
+            curl_easy_cleanup(curl);
+            
+            // Retry if not the last attempt
+            if (retry < max_retries - 1) {
+                std::random_device rd;
+                std::mt19937 gen(rd());
+                std::uniform_real_distribution<> dis(0.5, 1.0);
+                double random_factor = dis(gen);
+                double wait_time = std::pow(2, retry) * random_factor;
+                
+                std::cout << "[Client] Retrying in " << wait_time << " seconds..." << std::endl;
+                std::this_thread::sleep_for(std::chrono::duration<double>(wait_time));
+            }
+            continue;
+        }
+
+        long response_code = 0;
+        curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &response_code);
+        curl_easy_cleanup(curl);
+
+        if (response_code == 200) {
+            try {
+                nlohmann::json response_json = nlohmann::json::parse(readBuffer);
+                nlohmann::json best_params = response_json["params"];
+                std::cout << "[Client] Successfully received best parameters: " << best_params.dump() << std::endl;
+                return best_params;
+            }
+            catch (const std::exception &e) {
+                std::cerr << "[Client] JSON parsing error: " << e.what() << std::endl;
+            }
+        } else {
+            std::cerr << "[Client] Failed to request best parameters: HTTP " << response_code << " - " << readBuffer << std::endl;
+        }
+
+        // Retry if not the last attempt
+        if (retry < max_retries - 1) {
+            std::random_device rd;
+            std::mt19937 gen(rd());
+            std::uniform_real_distribution<> dis(0.5, 1.0);
+            double random_factor = dis(gen);
+            double wait_time = std::pow(2, retry) * random_factor;
+            
+            std::cout << "[Client] Retrying in " << wait_time << " seconds..." << std::endl;
+            std::this_thread::sleep_for(std::chrono::duration<double>(wait_time));
+        }
+    }
+
+    std::cout << "[Client] Maximum retry attempts exceeded, failed to request best parameters" << std::endl;
+    return nlohmann::json();
 }

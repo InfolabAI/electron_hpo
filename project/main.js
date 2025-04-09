@@ -118,9 +118,13 @@ function createWindow() {
 }
 
 /** 로컬 서버 시작 */
-function startLocalServer() {
-    // 기존 프로세스 종료
-    kill_pyhpo();
+// startLocalServer 함수를 비동기 함수로 변경
+async function startLocalServer() {
+    // 기존 프로세스 종료 - await를 사용하여 완전히 종료될 때까지 대기
+    await kill_pyhpo();
+
+    // 프로세스 종료 후 추가 안전 대기 시간 (ms)
+    await new Promise(resolve => setTimeout(resolve, 1000));
 
     const { DevPyScripts, testLocalServerExe, base } = getPaths();
     let command, args;
@@ -486,10 +490,13 @@ app.on('before-quit', async () => {
 
 /** 자식 프로세스 재시작 (기존 run-command를 수정) */
 ipcMain.handle('run-command', async () => {
-    return new Promise((resolve) => {
-        const success = startLocalServer();
-        resolve({ code: success ? 0 : 1 });
-    });
+    try {
+        const success = await startLocalServer(); // await 추가
+        return { code: success ? 0 : 1 };
+    } catch (error) {
+        console.error('[ERROR] run-command handler error:', error);
+        return { code: 1, error: error.message };
+    }
 });
 
 /** 대시보드 preload 경로 */
@@ -538,16 +545,47 @@ optuna_dashboard.run_server('${dbUrl}', host='127.0.0.1', port=8080)
 
 /** 기존 프로세스(서버/대시보드) 종료 */
 async function kill_pyhpo() {
+    let killPromises = [];
+
+    // 1. 내부적으로 관리하는 프로세스 종료
     if (hpoProcess) {
-        hpoProcess.kill(); hpoProcess = null;
-        console.log('[INFO] Child process terminated');
+        const killPromise = new Promise((resolve) => {
+            hpoProcess.on('close', () => {
+                console.log('[INFO] Child process terminated via kill()');
+                resolve();
+            });
+
+            hpoProcess.kill();
+            hpoProcess = null;
+        });
+
+        // 최대 2초까지만 대기 (무한정 대기하지 않도록)
+        const timeoutPromise = new Promise(resolve => setTimeout(resolve, 2000));
+        killPromises.push(Promise.race([killPromise, timeoutPromise]));
     }
-    // 필요하다면 Windows에서 taskkill
+
+    // 2. 외부 실행 중인 tls.exe 프로세스 종료
     try {
-        await exec('taskkill /F /IM tls.exe');
+        // taskkill 명령이 완료될 때까지 대기
+        const { stdout, stderr } = await exec('taskkill /F /IM tls.exe');
+        console.log('[INFO] taskkill result:', stdout);
+        if (stderr) console.error('[INFO] taskkill stderr:', stderr);
     } catch (error) {
-        console.error('[ERROR] kill process:', error.message);
+        // 프로세스가 없는 경우에도 에러가 발생하지만 무시해도 됨
+        if (error.message.includes('not found')) {
+            console.log('[INFO] No tls.exe process found to kill');
+        } else {
+            console.error('[ERROR] kill process:', error.message);
+        }
     }
+
+    // 모든 종료 작업 완료 대기
+    await Promise.all(killPromises);
+
+    // 추가 안전 대기
+    await new Promise(resolve => setTimeout(resolve, 500));
+
+    return true;
 }
 
 /** 기존 프로세스(서버/대시보드) 종료 */
