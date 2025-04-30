@@ -55,6 +55,7 @@ def get_trial_params(server_url, study_id=None, max_retries=3):
             else:
                 print(
                     f"[Client] 파라미터 요청 실패: HTTP {response.status_code} - {response.text}")
+                study_id = study_id + f"_{retry}"
 
         except requests.RequestException as e:
             print(f"[Client] 요청 중 오류 발생: {e}")
