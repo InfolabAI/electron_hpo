@@ -24,6 +24,32 @@
             display: block;
             /* 선택된 탭은 보이게 */
         }
+
+        .image-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .image-container img {
+            width: 100%;
+            height: auto;
+            object-fit: contain;
+            border: 1px solid #ddd;
+        }
+
+        .folder-path {
+            font-weight: bold;
+            margin-top: 10px;
+            margin-bottom: 5px;
+        }
+
+        .step-title {
+            font-weight: bold;
+            text-align: center;
+            margin-bottom: 10px;
+        }
     </style>
 </head>
 
@@ -106,7 +132,9 @@
                 -->
                 <button class="btn btn-warning w-100 d-block mx-auto mb-2" id="btnSettings">Settings</button>
                 <!-- 기존 버튼들 아래에 Dashboard 버튼 하나 추가 -->
-                <button class="btn btn-success w-100 d-block mx-auto mt-2" id="btnDashboard">Dashboard</button>
+                <button class="btn btn-success w-100 d-block mx-auto mt-2 mb-2" id="btnDashboard">Dashboard</button>
+                <!-- IQGen 버튼 추가 -->
+                <button class="btn btn-primary w-100 d-block mx-auto mt-2" id="btnIQGen">IQGen</button>
             </div>
 
             <!-- 오른쪽 컨텐츠: 남은 공간(col) -->
@@ -203,6 +231,10 @@
                 <div id="dashboardTab" class="tab-content">
                 </div>
 
+                <!-- IQGen Tab -->
+                <div id="iqgenTab" class="tab-content">
+                </div>
+
             </div> <!-- col 끝 -->
         </div> <!-- row 끝 -->
     </div> <!-- container-fluid 끝 -->
@@ -211,13 +243,16 @@
         // 탭 전환 로직
         const btnSettings = document.getElementById("btnSettings");
         const btnDashboard = document.getElementById("btnDashboard");
+        const btnIQGen = document.getElementById("btnIQGen");
         const settingsTab = document.getElementById("settingsTab");
         const dashboardTab = document.getElementById("dashboardTab");
+        const iqgenTab = document.getElementById("iqgenTab");
 
 
         btnSettings.addEventListener("click", async () => {
             settingsTab.classList.add("active");
             dashboardTab.classList.remove("active");
+            iqgenTab.classList.remove("active");
             // 설정 탭 들어갈 때마다 config.json 불러오기
             await loadConfig();
         });
@@ -227,6 +262,7 @@
         btnDashboard.addEventListener("click", async () => {
             settingsTab.classList.remove("active");
             dashboardTab.classList.add("active");
+            iqgenTab.classList.remove("active");
             // 1) dashboardTab 내부의 기존 webview가 있으면 제거 (이미 만들어진 적이 있으면)
             const existingWebview = document.querySelector('#dashboardTab webview');
             if (existingWebview) {
@@ -255,7 +291,56 @@
             //webview.addEventListener('dom-ready', () => {
             //    webview.openDevTools(); // webview 는 개발자 도구를 따로 사용하므로, 필요하다면 여기서 열어줘야 함.
             //});
+        });
 
+        // IQGen 버튼 클릭 시 탭 전환 및 iqgen.html 로드
+        btnIQGen.addEventListener("click", async () => {
+            settingsTab.classList.remove("active");
+            dashboardTab.classList.remove("active");
+            iqgenTab.classList.add("active");
+
+            // iqgenTab 내부의 기존 webview가 있으면 제거
+            const existingWebview = document.querySelector('#iqgenTab webview');
+            if (existingWebview) {
+                existingWebview.remove();
+            }
+
+            try {
+                // Webview를 동적으로 생성
+                const webview = document.createElement('webview');
+
+                // 동적 경로(preloadAbsolutePath) 가져오기
+                const preloadAbsolutePath = await window.electronAPI.getIQGenPreloadPath();
+                console.log("IQGen preload path:", preloadAbsolutePath);
+
+                // Webview 속성 설정
+                webview.setAttribute('preload', preloadAbsolutePath);
+                webview.setAttribute('src', 'iqgen.html');
+                webview.style.width = '100%';
+                webview.style.height = '800px';
+                webview.style.border = 'none';
+
+                // 디버깅을 위한 이벤트 리스너 추가
+                webview.addEventListener('dom-ready', () => {
+                    console.log('IQGen webview DOM is ready');
+                    // 개발 중에는 webview의 개발자 도구를 열어 디버깅
+                    // webview.openDevTools();
+                });
+
+                webview.addEventListener('did-fail-load', (e) => {
+                    console.error('Webview failed to load:', e);
+                });
+
+                webview.addEventListener('console-message', (e) => {
+                    console.log('Webview console message:', e.message);
+                });
+
+                // iqgenTab div에 삽입
+                iqgenTab.appendChild(webview);
+            } catch (error) {
+                console.error("Error loading IQGen tab:", error);
+                alert("IQGen 탭을 로드하는 중 오류가 발생했습니다: " + error.message);
+            }
         });
 
         // ---------------------

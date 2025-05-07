@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IQGen</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <style>
+        body {
+            font-family: sans-serif;
+            padding: 20px;
+        }
+
+        .top-row {
+            margin-bottom: 20px;
+        }
+
+        .step-container {
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            padding: 15px;
+            height: 100%;
+        }
+
+        .step-title {
+            font-weight: bold;
+            text-align: center;
+            margin-bottom: 10px;
+        }
+
+        .progress {
+            height: 20px;
+            margin-bottom: 15px;
+        }
+
+        .bottom-row {
+            display: flex;
+            flex-wrap: wrap;
+        }
+
+        .image-column {
+            flex: 1;
+            min-width: 300px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            margin: 5px;
+        }
+
+        .folder-path {
+            font-weight: bold;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+
+        .folder-path button {
+            margin-top: 5px;
+        }
+
+        .image-container {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 10px;
+            justify-items: center;
+        }
+
+        .image-container img {
+            width: 256px;
+            height: 256px;
+            object-fit: fill;
+            border: 1px solid #ddd;
+        }
+
+        .btn-help {
+            margin-left: 10px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container-fluid">
+        <!-- Top Row: Steps with progress bars -->
+        <div class="row top-row">
+            <!-- Step 1: Original Load -->
+            <div class="col-md-3">
+                <div class="step-container">
+                    <div class="step-title">원본 로드</div>
+                    <div class="progress">
+                        <div id="progressOriginal" class="progress-bar" role="progressbar" style="width: 0%;"
+                            aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+                    </div>
+                    <div class="mb-3">
+                        <button id="btnBaseLinePath" class="btn btn-sm btn-primary">기준 라인 폴더</button>
+                        <button id="btnBaseLineHelp" class="btn btn-sm btn-outline-info btn-help">?</button>
+                    </div>
+                    <div class="mb-3">
+                        <button id="btnOtherLinePath" class="btn btn-sm btn-primary">다른 라인 폴더</button>
+                        <button id="btnOtherLineHelp" class="btn btn-sm btn-outline-info btn-help">?</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 2: Sort Image Generation -->
+            <div class="col-md-3">
+                <div class="step-container">
+                    <div class="step-title">정렬 이미지 생성</div>
+                    <div class="progress">
+                        <div id="progressSort" class="progress-bar" role="progressbar" style="width: 0%;"
+                            aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+                    </div>
+                    <div class="d-grid gap-2">
+                        <button id="btnSort" class="btn btn-warning" disabled>정렬 실행</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 3: Optimal Augmentation Training -->
+            <div class="col-md-3">
+                <div class="step-container">
+                    <div class="step-title">최적 증강 학습</div>
+                    <div class="progress">
+                        <div id="progressAugment" class="progress-bar" role="progressbar" style="width: 0%;"
+                            aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+                    </div>
+                    <div class="d-grid gap-2">
+                        <button id="btnAugment" class="btn btn-warning" disabled>최적 증강 실행</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 4: Final Model Deployment -->
+            <div class="col-md-3">
+                <div class="step-container">
+                    <div class="step-title">최종모델 배포</div>
+                    <div class="progress">
+                        <div id="progressDeploy" class="progress-bar" role="progressbar" style="width: 0%;"
+                            aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+                    </div>
+                    <div class="d-grid gap-2">
+                        <button id="btnDeploy" class="btn btn-warning" disabled>최종 모델 배포</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bottom Row: Image Display -->
+        <div class="row bottom-row">
+            <!-- Column 1: Base Line Images -->
+            <div class="col-md-3 image-column">
+                <div id="baseLinePath" class="folder-path">
+                    기준 라인 폴더
+                    <button class="btn btn-sm btn-outline-secondary path-check-btn">경로확인</button>
+                </div>
+                <div id="baseLineImages" class="image-container">
+                    <!-- Images will be loaded here -->
+                </div>
+            </div>
+
+            <!-- Column 2: Other Line Images -->
+            <div class="col-md-3 image-column">
+                <div id="otherLinePath" class="folder-path">
+                    다른 라인 폴더
+                    <button class="btn btn-sm btn-outline-secondary path-check-btn">경로확인</button>
+                </div>
+                <div id="otherLineImages" class="image-container">
+                    <!-- Images will be loaded here -->
+                </div>
+            </div>
+
+            <!-- Column 3: Aligned Base Line Images -->
+            <div class="col-md-3 image-column">
+                <div id="alignedBaseLinePath" class="folder-path">
+                    정렬된 기준 라인 폴더
+                    <button class="btn btn-sm btn-outline-secondary path-check-btn">경로확인</button>
+                </div>
+                <div id="alignedBaseLineImages" class="image-container">
+                    <!-- Images will be loaded here -->
+                </div>
+            </div>
+
+            <!-- Column 4: Aligned Other Line Images -->
+            <div class="col-md-3 image-column">
+                <div id="alignedOtherLinePath" class="folder-path">
+                    정렬된 다른 라인 폴더
+                    <button class="btn btn-sm btn-outline-secondary path-check-btn">경로확인</button>
+                </div>
+                <div id="alignedOtherLineImages" class="image-container">
+                    <!-- Images will be loaded here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Variables to store paths
+        let baseLinePath = null;
+        let otherLinePath = null;
+        let alignedBaseLinePath = null;
+        let alignedOtherLinePath = null;
+        let isFirstTimePathsSelected = true;
+
+        // DOM Elements
+        const progressOriginal = document.getElementById('progressOriginal');
+        const progressSort = document.getElementById('progressSort');
+        const progressAugment = document.getElementById('progressAugment');
+        const progressDeploy = document.getElementById('progressDeploy');
+
+        const btnBaseLinePath = document.getElementById('btnBaseLinePath');
+        const btnOtherLinePath = document.getElementById('btnOtherLinePath');
+        const btnSort = document.getElementById('btnSort');
+        const btnAugment = document.getElementById('btnAugment');
+        const btnDeploy = document.getElementById('btnDeploy');
+
+        const btnBaseLineHelp = document.getElementById('btnBaseLineHelp');
+        const btnOtherLineHelp = document.getElementById('btnOtherLineHelp');
+
+        const baseLinePathElem = document.getElementById('baseLinePath');
+        const otherLinePathElem = document.getElementById('otherLinePath');
+        const alignedBaseLinePathElem = document.getElementById('alignedBaseLinePath');
+        const alignedOtherLinePathElem = document.getElementById('alignedOtherLinePath');
+
+        // Add event listeners for path check buttons
+        document.querySelectorAll('.path-check-btn').forEach(btn => {
+            btn.addEventListener('click', function () {
+                const parentId = this.parentElement.id;
+                let pathToShow = '';
+
+                switch (parentId) {
+                    case 'baseLinePath':
+                        pathToShow = baseLinePath || '선택되지 않음';
+                        break;
+                    case 'otherLinePath':
+                        pathToShow = otherLinePath || '선택되지 않음';
+                        break;
+                    case 'alignedBaseLinePath':
+                        pathToShow = alignedBaseLinePath || '선택되지 않음';
+                        break;
+                    case 'alignedOtherLinePath':
+                        pathToShow = alignedOtherLinePath || '선택되지 않음';
+                        break;
+                }
+
+                showHelpMessage(`폴더 경로: ${pathToShow}`);
+            });
+        });
+
+        const baseLineImagesContainer = document.getElementById('baseLineImages');
+        const otherLineImagesContainer = document.getElementById('otherLineImages');
+        const alignedBaseLineImagesContainer = document.getElementById('alignedBaseLineImages');
+        const alignedOtherLineImagesContainer = document.getElementById('alignedOtherLineImages');
+
+        // 시작 시 preload 스크립트가 로드되었는지 확인
+        console.log('IQGen HTML loaded. Checking if electronAPI is available:', !!window.electronAPI);
+
+        // Help message handlers
+        btnBaseLineHelp.addEventListener('click', () => {
+            showHelpMessage('학습 기준이 될 라인에서 생성한 이미지들이 있는 경로를 선택합니다.');
+        });
+
+        btnOtherLineHelp.addEventListener('click', () => {
+            showHelpMessage('일반화 할 다른 라인에서 생성한 이미지들이 있는 경로를 선택합니다.');
+        });
+
+        // Path selection handlers
+        btnBaseLinePath.addEventListener('click', async () => {
+            try {
+                console.log('기준 라인 폴더 선택 버튼 클릭됨');
+
+                if (!window.electronAPI) {
+                    throw new Error('electronAPI를 찾을 수 없습니다. preload 스크립트가 로드되지 않았습니다.');
+                }
+
+                const result = await window.electronAPI.openDirectoryDialog({ title: '기준 라인 폴더 선택' });
+                console.log('openDirectoryDialog 결과:', result);
+
+                if (!result.canceled && result.filePaths.length > 0) {
+                    const path = result.filePaths[0];
+                    baseLinePath = path;
+
+                    // Update progress bar to 50%
+                    progressOriginal.style.width = '50%';
+                    progressOriginal.setAttribute('aria-valuenow', '50');
+
+                    // Load images
+                    await loadImages(path, baseLineImagesContainer);
+
+                    // Check if both paths are selected
+                    checkBothPathsSelected();
+                }
+            } catch (error) {
+                console.error('Error selecting directory:', error);
+                showHelpMessage('폴더 선택 중 오류가 발생했습니다: ' + error.message);
+            }
+        });
+
+        btnOtherLinePath.addEventListener('click', async () => {
+            try {
+                console.log('다른 라인 폴더 선택 버튼 클릭됨');
+
+                if (!window.electronAPI) {
+                    throw new Error('electronAPI를 찾을 수 없습니다. preload 스크립트가 로드되지 않았습니다.');
+                }
+
+                const result = await window.electronAPI.openDirectoryDialog({ title: '다른 라인 폴더 선택' });
+                console.log('openDirectoryDialog 결과:', result);
+
+                if (!result.canceled && result.filePaths.length > 0) {
+                    const path = result.filePaths[0];
+                    otherLinePath = path;
+
+                    // Update progress bar to 100%
+                    progressOriginal.style.width = '100%';
+                    progressOriginal.setAttribute('aria-valuenow', '100');
+
+                    // Load images
+                    await loadImages(path, otherLineImagesContainer);
+
+                    // Check if both paths are selected
+                    checkBothPathsSelected();
+                }
+            } catch (error) {
+                console.error('Error selecting directory:', error);
+                showHelpMessage('폴더 선택 중 오류가 발생했습니다: ' + error.message);
+            }
+        });
+
+        // Process button handlers
+        btnSort.addEventListener('click', async () => {
+            try {
+                console.log('정렬 실행 버튼 클릭됨');
+
+                // 경로가 선택되었는지 확인
+                if (!baseLinePath || !otherLinePath) {
+                    showHelpMessage('기준 라인과 다른 라인 폴더를 모두 선택해주세요.');
+                    return;
+                }
+
+                // 버튼 비활성화 및 진행 상태 초기화
+                btnSort.disabled = true;
+                progressSort.style.width = '0%';
+                progressSort.setAttribute('aria-valuenow', '0');
+
+                // 정렬된 경로 설정
+                alignedBaseLinePath = baseLinePath + '_aligned';
+                alignedOtherLinePath = otherLinePath + '_aligned';
+
+                // 진행 상황 리스너 설정
+                window.electronAPI.onAlignmentProgress((progress) => {
+                    console.log(`정렬 진행 상황: ${progress}%`);
+                    progressSort.style.width = `${progress}%`;
+                    progressSort.setAttribute('aria-valuenow', progress);
+                });
+
+                // 완료 리스너 설정
+                window.electronAPI.onAlignmentComplete((result) => {
+                    console.log('정렬 프로세스 완료:', result);
+
+                    if (result.success) {
+                        // 정렬 완료 - 진행 바 최대치로 설정
+                        progressSort.style.width = '100%';
+                        progressSort.setAttribute('aria-valuenow', '100');
+
+                        // 정렬된 이미지 로드
+                        loadImages(alignedBaseLinePath, alignedBaseLineImagesContainer);
+                        loadImages(alignedOtherLinePath, alignedOtherLineImagesContainer);
+
+                        // 다음 버튼 활성화
+                        btnAugment.disabled = false;
+
+                        showHelpMessage('이미지 정렬이 완료되었습니다.');
+                    } else {
+                        // 정렬 실패
+                        progressSort.style.width = '0%';
+                        progressSort.setAttribute('aria-valuenow', '0');
+
+                        btnSort.disabled = false;
+                        showHelpMessage(`이미지 정렬 중 오류가 발생했습니다: ${result.error || '알 수 없는 오류'}`);
+                    }
+                });
+
+                // 이미지 정렬 시작
+                window.electronAPI.alignImages(baseLinePath, otherLinePath);
+                showHelpMessage('이미지 정렬이 시작되었습니다. 잠시만 기다려 주세요...');
+
+            } catch (error) {
+                console.error('Error during sort:', error);
+                btnSort.disabled = false;
+                showHelpMessage('정렬 과정 중 오류가 발생했습니다: ' + error.message);
+            }
+        });
+
+        btnAugment.addEventListener('click', async () => {
+            try {
+                showHelpMessage('80% 는 메모리뱅크 생성에 사용하고 20% 는 테스트에 사용합니다. 진행 결과는 좌측에 Dashboard 에 새로 생성된 study 를 클릭하여 확인하세요.');
+
+                // Update progress bar
+                progressAugment.style.width = '100%';
+                progressAugment.setAttribute('aria-valuenow', '100');
+
+                // Simulate augmentation process
+                await simulateProcess('증강 학습 중...');
+
+                // Enable the next button
+                btnDeploy.disabled = false;
+            } catch (error) {
+                console.error('Error during augmentation:', error);
+                showHelpMessage('증강 학습 중 오류가 발생했습니다: ' + error.message);
+            }
+        });
+
+        btnDeploy.addEventListener('click', async () => {
+            try {
+                console.log('최종 모델 배포 버튼 클릭됨');
+
+                if (!window.electronAPI) {
+                    throw new Error('electronAPI를 찾을 수 없습니다. preload 스크립트가 로드되지 않았습니다.');
+                }
+
+                const result = await window.electronAPI.openDirectoryDialog({ title: '모델 배포 경로 선택' });
+                console.log('openDirectoryDialog 결과:', result);
+
+                if (!result.canceled && result.filePaths.length > 0) {
+                    const deployPath = result.filePaths[0];
+
+                    // Update progress bar
+                    progressDeploy.style.width = '100%';
+                    progressDeploy.setAttribute('aria-valuenow', '100');
+
+                    // Simulate deployment process
+                    await simulateProcess('모델 배포 중...');
+
+                    showHelpMessage(`모델이 성공적으로 배포되었습니다: ${deployPath}`);
+                }
+            } catch (error) {
+                console.error('Error during deployment:', error);
+                showHelpMessage('모델 배포 중 오류가 발생했습니다: ' + error.message);
+            }
+        });
+
+        // Helper functions
+        function checkBothPathsSelected() {
+            if (baseLinePath && otherLinePath) {
+                btnSort.disabled = false;
+
+                // Show first-time instructions
+                if (isFirstTimePathsSelected) {
+                    showHelpMessage('이제 정렬 실행이 가능합니다. 상단에 정렬 실행 버튼을 누르세요');
+                    isFirstTimePathsSelected = false;
+                }
+
+                // Check if aligned folders already exist with all images
+                checkAlignedFolders();
+            }
+        }
+
+        async function checkAlignedFolders() {
+            try {
+                const possibleBaseAligned = baseLinePath + '_aligned';
+                const possibleOtherAligned = otherLinePath + '_aligned';
+
+                // Check if aligned directories exist
+                const baseAlignedExists = await window.electronAPI.directoryExists(possibleBaseAligned);
+                const otherAlignedExists = await window.electronAPI.directoryExists(possibleOtherAligned);
+
+                if (baseAlignedExists && otherAlignedExists) {
+                    // Get file lists from all directories
+                    const baseFiles = await window.electronAPI.readDirectory(baseLinePath);
+                    const otherFiles = await window.electronAPI.readDirectory(otherLinePath);
+                    const baseAlignedFiles = await window.electronAPI.readDirectory(possibleBaseAligned);
+                    const otherAlignedFiles = await window.electronAPI.readDirectory(possibleOtherAligned);
+
+                    // Filter only image files
+                    const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp'];
+                    const isImageFile = file => {
+                        const lowerFile = file.toLowerCase();
+                        return imageExtensions.some(ext => lowerFile.endsWith(ext));
+                    };
+
+                    const baseImages = baseFiles.filter(isImageFile);
+                    const baseAlignedImages = baseAlignedFiles.filter(isImageFile);
+                    const otherImages = otherFiles.filter(isImageFile);
+                    const otherAlignedImages = otherAlignedFiles.filter(isImageFile);
+
+                    // Check if all images from original folders exist in aligned folders
+                    const allBaseImagesAligned = baseImages.every(img => baseAlignedImages.includes(img));
+                    const allOtherImagesAligned = otherImages.every(img => otherAlignedImages.includes(img));
+
+                    if (allBaseImagesAligned && allOtherImagesAligned) {
+                        // Set aligned paths
+                        alignedBaseLinePath = possibleBaseAligned;
+                        alignedOtherLinePath = possibleOtherAligned;
+
+                        // Update UI to show alignment is complete
+                        progressSort.style.width = '100%';
+                        progressSort.setAttribute('aria-valuenow', '100');
+                        btnAugment.disabled = false;
+                        btnSort.disabled = true;
+
+                        // Load aligned images
+                        await loadImages(alignedBaseLinePath, alignedBaseLineImagesContainer);
+                        await loadImages(alignedOtherLinePath, alignedOtherLineImagesContainer);
+
+                        // Show message
+                        showHelpMessage('이미 정렬완료된 데이터입니다.');
+                    }
+                }
+            } catch (error) {
+                console.error('Error checking aligned folders:', error);
+                // Continue without showing errors to the user
+            }
+        }
+
+        async function loadImages(path, container) {
+            // Clear container
+            container.innerHTML = '';
+
+            try {
+                // Get image files from the directory
+                const files = await window.electronAPI.readDirectory(path);
+
+                // Filter only image files by extension
+                const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp'];
+                const imageFiles = files.filter(file => {
+                    const lowerFile = file.toLowerCase();
+                    return imageExtensions.some(ext => lowerFile.endsWith(ext));
+                });
+
+                // Limit to 50 images
+                const limitedImages = imageFiles.slice(0, 50);
+
+                if (limitedImages.length === 0) {
+                    container.innerHTML = '<p>이미지 파일이 없습니다.</p>';
+                    return;
+                }
+
+                // Create image elements
+                limitedImages.forEach(file => {
+                    const img = document.createElement('img');
+                    img.src = `file://${path}/${file}`;
+                    img.alt = file;
+                    img.title = file;
+                    container.appendChild(img);
+                });
+            } catch (error) {
+                console.error('Error loading images:', error);
+                container.innerHTML = '<p>이미지를 불러올 수 없습니다.</p>';
+
+                // 오류 시 샘플 이미지 생성 (테스트용)
+                for (let i = 1; i <= 5; i++) {
+                    const img = document.createElement('img');
+                    img.src = `https://via.placeholder.com/150?text=sample_${i}`;
+                    img.alt = `sample_${i}.jpg`;
+                    img.title = `sample_${i}.jpg`;
+                    container.appendChild(img);
+                }
+            }
+        }
+
+        function showHelpMessage(message) {
+            try {
+                // Use parent window's message box
+                window.electronAPI.showMessageBox({
+                    type: 'info',
+                    title: '안내',
+                    message: message,
+                    buttons: ['확인']
+                });
+            } catch (error) {
+                // Fallback to alert if parent messaging fails
+                alert(message);
+            }
+        }
+
+        async function simulateProcess(processName) {
+            return new Promise(resolve => {
+                // Simulate a process with a timeout
+                console.log(`Starting: ${processName}`);
+                setTimeout(() => {
+                    console.log(`Completed: ${processName}`);
+                    resolve();
+                }, 1500);
+            });
+        }
+    </script>
+</body>
+
+</html>

@@ -486,7 +486,118 @@ app.on('window-all-closed', () => {
 app.on('before-quit', async () => {
     await kill_pyhpo();
     await kill_dashboard();
+
+    // 정렬 프로세스 종료
+    if (alignmentProcess) {
+        alignmentProcess.kill();
+        alignmentProcess = null;
+        console.log('[INFO] Alignment process terminated');
+    }
 });
+
+/** XFeat 이미지 정렬 실행 */
+let alignmentProcess = null;
+async function runXFeatAligner(baseLinePath, otherLinePath, event) {
+    // 기존 프로세스 종료
+    if (alignmentProcess) {
+        alignmentProcess.kill();
+        alignmentProcess = null;
+    }
+
+    const { base, pyScripts, pythonExe } = getPaths();
+    const alignerScript = path.join(base, 'python_scripts', 'xfeat_aligner.py');
+
+    // 명령어 및 인수 설정
+    let command, args;
+    if (isDev) {
+        // 개발 모드 - Python 스크립트 직접 실행
+        command = 'python';
+        args = [alignerScript, baseLinePath, otherLinePath, '--root', __dirname];
+    } else {
+        // 배포 모드
+        command = pythonExe;
+        args = [alignerScript, baseLinePath, otherLinePath, '--root', base];
+    }
+
+    console.log('Starting XFeat alignment:', command, args);
+
+    try {
+        // 환경 변수 설정
+        const env = { ...process.env };
+
+        // 실행 옵션 설정
+        const options = {
+            env,
+            cwd: path.dirname(command),
+            windowsHide: true,
+            stdio: 'pipe'
+        };
+
+        // 프로세스 생성
+        alignmentProcess = spawn(command, args, options);
+
+        // stdout - 진행 상황 처리
+        alignmentProcess.stdout.on('data', (data) => {
+            const output = data.toString().trim();
+            console.log('[xfeat-aligner]', output);
+
+            // JSON 형식의 진행 상황 파싱 및 전달
+            try {
+                const progressData = JSON.parse(output);
+                if (progressData.progress !== undefined) {
+                    // 진행 상황을 렌더러 프로세스로 전송
+                    if (event && event.sender) {
+                        event.sender.send('alignment:progress', progressData.progress);
+                    }
+                }
+            } catch (e) {
+                // JSON이 아닌 일반 출력은 무시
+            }
+        });
+
+        // stderr
+        alignmentProcess.stderr.on('data', (data) => {
+            const errorMsg = data.toString();
+            console.error('[xfeat-aligner-error]', errorMsg);
+        });
+
+        // close
+        alignmentProcess.on('close', (code) => {
+            console.log(`[xfeat-aligner] process exited with code=${code}`);
+            alignmentProcess = null;
+
+            // 완료 또는 오류 상태를 렌더러 프로세스로 전송
+            if (event && event.sender) {
+                event.sender.send('alignment:complete', {
+                    success: code === 0,
+                    error: code !== 0 ? `Process exited with code ${code}` : null
+                });
+            }
+        });
+
+        // error
+        alignmentProcess.on('error', (err) => {
+            console.error('[xfeat-aligner] failed to start:', err);
+            if (event && event.sender) {
+                event.sender.send('alignment:complete', {
+                    success: false,
+                    error: err.message
+                });
+            }
+        });
+
+        return true;
+    } catch (err) {
+        console.error('[ERROR] Failed to start XFeat aligner:', err);
+        if (event && event.sender) {
+            event.sender.send('alignment:complete', {
+                success: false,
+                error: err.message
+            });
+        }
+        return false;
+    }
+}
 
 /** 자식 프로세스 재시작 (기존 run-command를 수정) */
 ipcMain.handle('run-command', async () => {
@@ -541,7 +652,6 @@ optuna_dashboard.run_server('${dbUrl}', host='127.0.0.1', port=8080)
         console.error('[dashboard] failed to start:', err);
     });
 }
-
 
 /** 기존 프로세스(서버/대시보드) 종료 */
 async function kill_pyhpo() {
@@ -643,4 +753,76 @@ ipcMain.handle('load-results', async () => {
         console.error('Parsing results error:', err);
         return [];
     }
+});
+
+// IPC handlers for IQGen features
+ipcMain.handle('dialog:openDirectory', async (event, options) => {
+    const { canceled, filePaths } = await dialog.showOpenDialog({
+        properties: ['openDirectory'],
+        ...options
+    });
+    return { canceled, filePaths };
+});
+
+// XFeat 이미지 정렬 실행 핸들러
+ipcMain.on('image:align', (event, { baseLinePath, otherLinePath }) => {
+    runXFeatAligner(baseLinePath, otherLinePath, event);
+});
+
+ipcMain.handle('dialog:showMessageBox', async (event, options) => {
+    return await dialog.showMessageBox(options);
+});
+
+ipcMain.handle('fs:readDirectory', async (event, dirPath) => {
+    try {
+        return await fs.promises.readdir(dirPath);
+    } catch (error) {
+        console.error('Error reading directory:', error);
+        throw error;
+    }
+});
+
+// Check if a directory exists
+ipcMain.handle('fs:directoryExists', async (event, dirPath) => {
+    try {
+        const stats = await fs.promises.stat(dirPath);
+        return stats.isDirectory();
+    } catch (error) {
+        return false;
+    }
+});
+
+// 이미지 처리 핸들러
+ipcMain.handle('image:process', async (event, { sourcePath, targetPath }) => {
+    try {
+        // 여기에 이미지 처리 로직 구현
+        // 예: 이미지 복사, 변환 등
+        console.log(`이미지 처리: ${sourcePath} -> ${targetPath}`);
+        return { success: true, message: '이미지 처리 완료' };
+    } catch (error) {
+        console.error('이미지 처리 오류:', error);
+        return { success: false, message: error.message };
+    }
+});
+
+// 모델 배포 핸들러
+ipcMain.handle('model:deploy', async (event, { sourcePath, targetPath }) => {
+    try {
+        // 여기에 모델 배포 로직 구현
+        console.log(`모델 배포: ${sourcePath} -> ${targetPath}`);
+        return { success: true, message: '모델 배포 완료' };
+    } catch (error) {
+        console.error('모델 배포 오류:', error);
+        return { success: false, message: error.message };
+    }
+});
+
+// 로그 메시지 수신 핸들러
+ipcMain.on('log:message', (event, message) => {
+    console.log(`IQGen 로그: ${message}`);
+});
+
+// Get path to IQGen preload script
+ipcMain.handle('getIQGenPreloadPath', () => {
+    return path.join(__dirname, 'preload-iqgen.js');
 });

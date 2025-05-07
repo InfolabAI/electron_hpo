@@ -4,6 +4,7 @@ project/dist/
 # 의존성
 project/node_modules/
 project/env/
+project/python_scripts/models/
 
 # 스크립트 파일
 project/build_transfer.sh
