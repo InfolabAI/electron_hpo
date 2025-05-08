@@ -10,6 +10,8 @@
         body {
             font-family: sans-serif;
             padding: 20px;
+            background-color: #1e1e1e;
+            color: #e0e0e0;
         }
 
         .top-row {
@@ -17,21 +19,28 @@
         }
 
         .step-container {
-            border: 1px solid #ddd;
+            border: 1px solid #444;
             border-radius: 5px;
             padding: 15px;
             height: 100%;
+            background-color: #2d2d2d;
         }
 
         .step-title {
             font-weight: bold;
             text-align: center;
             margin-bottom: 10px;
+            color: #e0e0e0;
         }
 
         .progress {
             height: 20px;
             margin-bottom: 15px;
+            background-color: #444;
+        }
+
+        .progress-bar {
+            background-color: #0d6efd;
         }
 
         .bottom-row {
@@ -39,19 +48,28 @@
             flex-wrap: wrap;
         }
 
+        /* Custom 1.5 column width for 8 column layout */
+        .col-xl-1-5 {
+            flex: 0 0 12.5%;
+            max-width: 12.5%;
+        }
+
         .image-column {
             flex: 1;
-            min-width: 300px;
-            padding: 10px;
-            border: 1px solid #ddd;
+            min-width: 150px;
+            padding: 1px;
+            border: 1px solid #444;
             border-radius: 5px;
             margin: 5px;
+            background-color: #2d2d2d;
         }
 
         .folder-path {
             font-weight: bold;
             margin-bottom: 10px;
             text-align: center;
+            color: #e0e0e0;
+            font-size: 0.85rem;
         }
 
         .folder-path button {
@@ -61,42 +79,122 @@
         .image-container {
             display: grid;
             grid-template-columns: 1fr;
-            gap: 10px;
+            gap: 1px;
             justify-items: center;
         }
 
         .image-container img {
-            width: 256px;
-            height: 256px;
+            width: 190px;
+            height: 190px;
             object-fit: fill;
-            border: 1px solid #ddd;
+            border: 1px solid #444;
         }
 
         .btn-help {
             margin-left: 10px;
+        }
+
+        /* Form controls */
+        .form-control,
+        .form-select {
+            background-color: #2d2d2d;
+            border-color: #444;
+            color: #e0e0e0;
+        }
+
+        .form-control:focus,
+        .form-select:focus {
+            background-color: #2d2d2d;
+            border-color: #666;
+            color: #e0e0e0;
+            box-shadow: 0 0 0 0.25rem rgba(255, 255, 255, 0.1);
+        }
+
+        /* Button styles */
+        .btn-warning {
+            background-color: #ffc107;
+            border-color: #ffc107;
+            color: #1e1e1e;
+        }
+
+        .btn-warning:hover {
+            background-color: #ffca2c;
+            border-color: #ffc720;
+            color: #1e1e1e;
+        }
+
+        .btn-primary {
+            background-color: #0d6efd;
+            border-color: #0d6efd;
+            color: #fff;
+        }
+
+        .btn-primary:hover {
+            background-color: #0b5ed7;
+            border-color: #0a58ca;
+            color: #fff;
+        }
+
+        .btn-outline-secondary {
+            color: #e0e0e0;
+            border-color: #666;
+        }
+
+        .btn-outline-secondary:hover {
+            background-color: #444;
+            color: #fff;
+        }
+
+        .btn-outline-info {
+            color: #0dcaf0;
+            border-color: #0dcaf0;
+        }
+
+        .btn-outline-info:hover {
+            background-color: #0dcaf0;
+            color: #1e1e1e;
         }
     </style>
 </head>
 
 <body>
     <div class="container-fluid">
+        <!-- System Description -->
+        <div class="row mb-3">
+            <div class="col-6 text-center">
+                <h2>Image quality (IQ) 편차 완화 학습 시스템</h4>
+            </div>
+            <div class="col-6 text-end">
+                <button id="btnResetAll" class="btn btn-outline-danger">전체 초기화</button>
+            </div>
+            <div class="col-12 text-center">
+                <h5 style="color: #a0a0a0;">좌측부터 숫자 순서대로 진행하세요</h5>
+            </div>
+        </div>
         <!-- Top Row: Steps with progress bars -->
         <div class="row top-row">
             <!-- Step 1: Original Load -->
             <div class="col-md-3">
                 <div class="step-container">
-                    <div class="step-title">원본 로드</div>
+                    <div class="step-title">1. 원본 로드</div>
                     <div class="progress">
                         <div id="progressOriginal" class="progress-bar" role="progressbar" style="width: 0%;"
                             aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
                     </div>
-                    <div class="mb-3">
-                        <button id="btnBaseLinePath" class="btn btn-sm btn-primary">기준 라인 폴더</button>
-                        <button id="btnBaseLineHelp" class="btn btn-sm btn-outline-info btn-help">?</button>
+                    <div class="mb-2">
+                        <div class="d-flex">
+                            <button id="btnBaseLinePath" class="btn btn-sm btn-primary flex-grow-1">기준 라인 폴더</button>
+                            <button id="btnBaseLineHelp" class="btn btn-sm btn-outline-info btn-help">?</button>
+                        </div>
                     </div>
-                    <div class="mb-3">
-                        <button id="btnOtherLinePath" class="btn btn-sm btn-primary">다른 라인 폴더</button>
-                        <button id="btnOtherLineHelp" class="btn btn-sm btn-outline-info btn-help">?</button>
+                    <div class="mb-2">
+                        <div class="d-flex">
+                            <button id="btnOtherLinePath" class="btn btn-sm btn-primary flex-grow-1">다른 라인 폴더</button>
+                            <button id="btnOtherLineHelp" class="btn btn-sm btn-outline-info btn-help">?</button>
+                        </div>
+                    </div>
+                    <div class="d-grid gap-2">
+                        <button id="btnGenerateAnomaly" class="btn btn-sm btn-warning">A,B 의 anomaly map 생성</button>
                     </div>
                 </div>
             </div>
@@ -104,7 +202,7 @@
             <!-- Step 2: Sort Image Generation -->
             <div class="col-md-3">
                 <div class="step-container">
-                    <div class="step-title">정렬 이미지 생성</div>
+                    <div class="step-title">2. 정렬 이미지 생성</div>
                     <div class="progress">
                         <div id="progressSort" class="progress-bar" role="progressbar" style="width: 0%;"
                             aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
@@ -118,13 +216,26 @@
             <!-- Step 3: Optimal Augmentation Training -->
             <div class="col-md-3">
                 <div class="step-container">
-                    <div class="step-title">최적 증강 학습</div>
-                    <div class="progress">
-                        <div id="progressAugment" class="progress-bar" role="progressbar" style="width: 0%;"
-                            aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+                    <div class="step-title">3. 최적 증강 학습</div>
+                    <div class="progress-info text-center mb-2"
+                        style="font-size: 0.85rem; display: flex; align-items: center; justify-content: center;">
+                        <span id="trialCounterText">Trial: 0</span>
+                        <span style="margin-left: 8px; margin-right: 4px;">Study ID:</span>
+                        <span id="studyIdValue"></span>
+                        <button id="btnStudyIdHelp" class="btn btn-sm btn-outline-info btn-help"
+                            style="margin-left: 4px; padding: 0px 4px;">?</button>
                     </div>
-                    <div class="d-grid gap-2">
+                    <div class="d-grid gap-2 mb-2">
+                        <div class="row">
+                            <div class="col-6">
+                                <button id="btnResetAugment" class="btn btn-outline-danger mb-2 w-100">초기화</button>
+                            </div>
+                            <div class="col-6">
+                                <button id="btnStopAugment" class="btn btn-outline-warning mb-2 w-100">중단</button>
+                            </div>
+                        </div>
                         <button id="btnAugment" class="btn btn-warning" disabled>최적 증강 실행</button>
+                        <button id="btnCheckBestParams" class="btn btn-outline-info">현재 최적 파라미터 확인</button>
                     </div>
                 </div>
             </div>
@@ -132,12 +243,14 @@
             <!-- Step 4: Final Model Deployment -->
             <div class="col-md-3">
                 <div class="step-container">
-                    <div class="step-title">최종모델 배포</div>
+                    <div class="step-title">4. 최종모델 배포</div>
                     <div class="progress">
                         <div id="progressDeploy" class="progress-bar" role="progressbar" style="width: 0%;"
                             aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
                     </div>
                     <div class="d-grid gap-2">
+                        <button id="btnGenerateAlignedAnomaly" class="btn btn-sm btn-warning mb-2">현재 최적 파라미터로 C,D 의
+                            anomaly map 생성</button>
                         <button id="btnDeploy" class="btn btn-warning" disabled>최종 모델 배포</button>
                     </div>
                 </div>
@@ -147,45 +260,89 @@
         <!-- Bottom Row: Image Display -->
         <div class="row bottom-row">
             <!-- Column 1: Base Line Images -->
-            <div class="col-md-3 image-column">
+            <div class="col-md-3 col-lg-3 col-xl-1-5 image-column">
                 <div id="baseLinePath" class="folder-path">
-                    기준 라인 폴더
-                    <button class="btn btn-sm btn-outline-secondary path-check-btn">경로확인</button>
+                    [A] 기준 라인 폴더
+                    <button class="btn btn-sm btn-outline-secondary path-check-btn">경로</button>
                 </div>
                 <div id="baseLineImages" class="image-container">
                     <!-- Images will be loaded here -->
                 </div>
             </div>
 
-            <!-- Column 2: Other Line Images -->
-            <div class="col-md-3 image-column">
+            <!-- Column 2: Base Line Anomaly Maps -->
+            <div class="col-md-3 col-lg-3 col-xl-1-5 image-column">
+                <div id="baseLineAnomalyPath" class="folder-path">
+                    A 의 Anomaly Maps
+                    <button class="btn btn-sm btn-outline-secondary path-check-btn">경로</button>
+                </div>
+                <div id="baseLineAnomalyImages" class="image-container">
+                    <!-- Images will be loaded here -->
+                </div>
+            </div>
+
+            <!-- Column 3: Other Line Images -->
+            <div class="col-md-3 col-lg-3 col-xl-1-5 image-column">
                 <div id="otherLinePath" class="folder-path">
-                    다른 라인 폴더
-                    <button class="btn btn-sm btn-outline-secondary path-check-btn">경로확인</button>
+                    [B] 다른 라인 폴더
+                    <button class="btn btn-sm btn-outline-secondary path-check-btn">경로</button>
                 </div>
                 <div id="otherLineImages" class="image-container">
                     <!-- Images will be loaded here -->
                 </div>
             </div>
 
-            <!-- Column 3: Aligned Base Line Images -->
-            <div class="col-md-3 image-column">
+            <!-- Column 4: Other Line Anomaly Maps -->
+            <div class="col-md-3 col-lg-3 col-xl-1-5 image-column">
+                <div id="otherLineAnomalyPath" class="folder-path">
+                    B 의 Anomaly Maps
+                    <button class="btn btn-sm btn-outline-secondary path-check-btn">경로</button>
+                </div>
+                <div id="otherLineAnomalyImages" class="image-container">
+                    <!-- Images will be loaded here -->
+                </div>
+            </div>
+
+            <!-- Column 5: Aligned Base Line Images -->
+            <div class="col-md-3 col-lg-3 col-xl-1-5 image-column">
                 <div id="alignedBaseLinePath" class="folder-path">
-                    정렬된 기준 라인 폴더
-                    <button class="btn btn-sm btn-outline-secondary path-check-btn">경로확인</button>
+                    [C] 정렬된 A
+                    <button class="btn btn-sm btn-outline-secondary path-check-btn">경로</button>
                 </div>
                 <div id="alignedBaseLineImages" class="image-container">
                     <!-- Images will be loaded here -->
                 </div>
             </div>
 
-            <!-- Column 4: Aligned Other Line Images -->
-            <div class="col-md-3 image-column">
+            <!-- Column 6: Aligned Base Line Anomaly Maps -->
+            <div class="col-md-3 col-lg-3 col-xl-1-5 image-column">
+                <div id="alignedBaseLineAnomalyPath" class="folder-path">
+                    C 의 Anomaly Maps
+                    <button class="btn btn-sm btn-outline-secondary path-check-btn">경로</button>
+                </div>
+                <div id="alignedBaseLineAnomalyImages" class="image-container">
+                    <!-- Images will be loaded here -->
+                </div>
+            </div>
+
+            <!-- Column 7: Aligned Other Line Images -->
+            <div class="col-md-3 col-lg-3 col-xl-1-5 image-column">
                 <div id="alignedOtherLinePath" class="folder-path">
-                    정렬된 다른 라인 폴더
-                    <button class="btn btn-sm btn-outline-secondary path-check-btn">경로확인</button>
+                    [D] 정렬된 B
+                    <button class="btn btn-sm btn-outline-secondary path-check-btn">경로</button>
                 </div>
                 <div id="alignedOtherLineImages" class="image-container">
+                    <!-- Images will be loaded here -->
+                </div>
+            </div>
+
+            <!-- Column 8: Aligned Other Line Anomaly Maps -->
+            <div class="col-md-3 col-lg-3 col-xl-1-5 image-column">
+                <div id="alignedOtherLineAnomalyPath" class="folder-path">
+                    D 의 Anomaly Maps
+                    <button class="btn btn-sm btn-outline-secondary path-check-btn">경로</button>
+                </div>
+                <div id="alignedOtherLineAnomalyImages" class="image-container">
                     <!-- Images will be loaded here -->
                 </div>
             </div>
@@ -199,19 +356,185 @@
         let otherLinePath = null;
         let alignedBaseLinePath = null;
         let alignedOtherLinePath = null;
+        let baseLineAnomalyPath = null;
+        let otherLineAnomalyPath = null;
+        let alignedBaseLineAnomalyPath = null;
+        let alignedOtherLineAnomalyPath = null;
         let isFirstTimePathsSelected = true;
+        let currentStudyId = null;
+        let augmentationRunning = false;
+        let augmentationStartTime = null;
+        let currentTrial = 0;
+        let totalTrials = 300; // Default total trials
+        let bestParams = null; // Store best parameters
+
+        // Load state from localStorage if available (for tab persistence)
+        function loadSavedState() {
+            try {
+                const savedState = localStorage.getItem('iqgenState');
+                if (savedState) {
+                    const state = JSON.parse(savedState);
+                    baseLinePath = state.baseLinePath;
+                    otherLinePath = state.otherLinePath;
+                    alignedBaseLinePath = state.alignedBaseLinePath;
+                    alignedOtherLinePath = state.alignedOtherLinePath;
+                    baseLineAnomalyPath = state.baseLineAnomalyPath;
+                    otherLineAnomalyPath = state.otherLineAnomalyPath;
+                    alignedBaseLineAnomalyPath = state.alignedBaseLineAnomalyPath;
+                    alignedOtherLineAnomalyPath = state.alignedOtherLineAnomalyPath;
+                    isFirstTimePathsSelected = state.isFirstTimePathsSelected;
+                    currentStudyId = state.currentStudyId;
+                    augmentationRunning = state.augmentationRunning;
+                    augmentationStartTime = state.augmentationStartTime;
+                    currentTrial = state.currentTrial || 0;
+                    totalTrials = state.totalTrials || 300;
+                    bestParams = state.bestParams || null;
+
+                    // Update UI based on loaded state
+                    if (baseLinePath) {
+                        progressOriginal.style.width = '50%';
+                        progressOriginal.setAttribute('aria-valuenow', '50');
+                        loadImages(baseLinePath, baseLineImagesContainer);
+                    }
+
+                    if (otherLinePath) {
+                        progressOriginal.style.width = '100%';
+                        progressOriginal.setAttribute('aria-valuenow', '100');
+                        loadImages(otherLinePath, otherLineImagesContainer);
+                    }
+
+                    if (baseLineAnomalyPath) {
+                        loadImages(baseLineAnomalyPath, baseLineAnomalyImagesContainer);
+                    }
+
+                    if (otherLineAnomalyPath) {
+                        loadImages(otherLineAnomalyPath, otherLineAnomalyImagesContainer);
+                    }
+
+                    if (alignedBaseLinePath && alignedOtherLinePath) {
+                        progressSort.style.width = '100%';
+                        progressSort.setAttribute('aria-valuenow', '100');
+                        loadImages(alignedBaseLinePath, alignedBaseLineImagesContainer);
+                        loadImages(alignedOtherLinePath, alignedOtherLineImagesContainer);
+                        btnAugment.disabled = !augmentationRunning;
+                    }
+
+                    if (alignedBaseLineAnomalyPath) {
+                        loadImages(alignedBaseLineAnomalyPath, alignedBaseLineAnomalyImagesContainer);
+                    }
+
+                    if (alignedOtherLineAnomalyPath) {
+                        loadImages(alignedOtherLineAnomalyPath, alignedOtherLineAnomalyImagesContainer);
+                    }
+
+                    if (currentStudyId) {
+                        document.getElementById('studyIdValue').textContent = currentStudyId;
+                    }
+
+                    if (augmentationRunning) {
+                        btnAugment.disabled = true;
+
+                        // Update trial counter
+                        document.getElementById('trialCounterText').textContent = `Trial: ${currentTrial}`;
+
+                        // Re-register for progress updates from any running process
+                        window.electronAPI.onAugmentationProgress &&
+                            window.electronAPI.onAugmentationProgress(updateAugmentationProgress);
+                    }
+
+                    checkBothPathsSelected();
+
+                    // Update the C,D anomaly maps generation button state based on bestParams
+                    if (btnGenerateAlignedAnomaly) {
+                        btnGenerateAlignedAnomaly.disabled = !bestParams || !alignedBaseLinePath || !alignedOtherLinePath;
+                    }
+                }
+            } catch (error) {
+                console.error('Error loading saved state:', error);
+            }
+        }
+
+        // Save current state to localStorage
+        function saveCurrentState() {
+            try {
+                const state = {
+                    baseLinePath,
+                    otherLinePath,
+                    alignedBaseLinePath,
+                    alignedOtherLinePath,
+                    baseLineAnomalyPath,
+                    otherLineAnomalyPath,
+                    alignedBaseLineAnomalyPath,
+                    alignedOtherLineAnomalyPath,
+                    isFirstTimePathsSelected,
+                    currentStudyId,
+                    augmentationRunning,
+                    augmentationStartTime,
+                    currentTrial,
+                    totalTrials,
+                    bestParams
+                };
+
+                localStorage.setItem('iqgenState', JSON.stringify(state));
+            } catch (error) {
+                console.error('Error saving state:', error);
+            }
+        }
+
+        // Update function to handle study progress updates
+        function updateAugmentationProgress(data) {
+            console.log('Augmentation progress update:', data);
+
+            if (data.current_trial !== undefined) {
+                currentTrial = parseInt(data.current_trial);
+                totalTrials = data.total_trials ? parseInt(data.total_trials) : totalTrials;
+
+                // Update trial counter
+                document.getElementById('trialCounterText').textContent = `Trial: ${currentTrial}`;
+            }
+
+            // Save best parameters
+            if (data.best_params) {
+                bestParams = data.best_params;
+                console.log('Updated best parameters:', bestParams);
+
+                // Enable C,D anomaly map generation if aligned paths exist
+                if (alignedBaseLinePath && alignedOtherLinePath) {
+                    btnGenerateAlignedAnomaly.disabled = false;
+                }
+            }
+
+            if (data.study_id && (!currentStudyId || data.study_id !== currentStudyId)) {
+                currentStudyId = data.study_id;
+                document.getElementById('studyIdValue').textContent = currentStudyId;
+            }
+
+            if (data.status === 'complete') {
+                augmentationRunning = false;
+                btnAugment.disabled = false;
+                btnDeploy.disabled = false;
+                document.getElementById('trialCounterText').textContent = `Trial: ${currentTrial} (완료)`;
+            }
+
+            saveCurrentState();
+        }
 
         // DOM Elements
         const progressOriginal = document.getElementById('progressOriginal');
         const progressSort = document.getElementById('progressSort');
-        const progressAugment = document.getElementById('progressAugment');
         const progressDeploy = document.getElementById('progressDeploy');
 
         const btnBaseLinePath = document.getElementById('btnBaseLinePath');
         const btnOtherLinePath = document.getElementById('btnOtherLinePath');
         const btnSort = document.getElementById('btnSort');
         const btnAugment = document.getElementById('btnAugment');
+        const btnResetAugment = document.getElementById('btnResetAugment');
+        const btnStopAugment = document.getElementById('btnStopAugment');
+        const btnCheckBestParams = document.getElementById('btnCheckBestParams');
         const btnDeploy = document.getElementById('btnDeploy');
+        const btnGenerateAnomaly = document.getElementById('btnGenerateAnomaly');
+        const btnGenerateAlignedAnomaly = document.getElementById('btnGenerateAlignedAnomaly');
+        const btnResetAll = document.getElementById('btnResetAll');
 
         const btnBaseLineHelp = document.getElementById('btnBaseLineHelp');
         const btnOtherLineHelp = document.getElementById('btnOtherLineHelp');
@@ -220,6 +543,10 @@
         const otherLinePathElem = document.getElementById('otherLinePath');
         const alignedBaseLinePathElem = document.getElementById('alignedBaseLinePath');
         const alignedOtherLinePathElem = document.getElementById('alignedOtherLinePath');
+        const baseLineAnomalyPathElem = document.getElementById('baseLineAnomalyPath');
+        const otherLineAnomalyPathElem = document.getElementById('otherLineAnomalyPath');
+        const alignedBaseLineAnomalyPathElem = document.getElementById('alignedBaseLineAnomalyPath');
+        const alignedOtherLineAnomalyPathElem = document.getElementById('alignedOtherLineAnomalyPath');
 
         // Add event listeners for path check buttons
         document.querySelectorAll('.path-check-btn').forEach(btn => {
@@ -240,6 +567,18 @@
                     case 'alignedOtherLinePath':
                         pathToShow = alignedOtherLinePath || '선택되지 않음';
                         break;
+                    case 'baseLineAnomalyPath':
+                        pathToShow = baseLineAnomalyPath || '선택되지 않음';
+                        break;
+                    case 'otherLineAnomalyPath':
+                        pathToShow = otherLineAnomalyPath || '선택되지 않음';
+                        break;
+                    case 'alignedBaseLineAnomalyPath':
+                        pathToShow = alignedBaseLineAnomalyPath || '선택되지 않음';
+                        break;
+                    case 'alignedOtherLineAnomalyPath':
+                        pathToShow = alignedOtherLineAnomalyPath || '선택되지 않음';
+                        break;
                 }
 
                 showHelpMessage(`폴더 경로: ${pathToShow}`);
@@ -250,17 +589,211 @@
         const otherLineImagesContainer = document.getElementById('otherLineImages');
         const alignedBaseLineImagesContainer = document.getElementById('alignedBaseLineImages');
         const alignedOtherLineImagesContainer = document.getElementById('alignedOtherLineImages');
+        const baseLineAnomalyImagesContainer = document.getElementById('baseLineAnomalyImages');
+        const otherLineAnomalyImagesContainer = document.getElementById('otherLineAnomalyImages');
+        const alignedBaseLineAnomalyImagesContainer = document.getElementById('alignedBaseLineAnomalyImages');
+        const alignedOtherLineAnomalyImagesContainer = document.getElementById('alignedOtherLineAnomalyImages');
 
         // 시작 시 preload 스크립트가 로드되었는지 확인
         console.log('IQGen HTML loaded. Checking if electronAPI is available:', !!window.electronAPI);
 
+        // 초기 버튼 상태 설정
+        btnGenerateAnomaly.disabled = true;
+        btnGenerateAlignedAnomaly.disabled = true;
+
+        // Anomaly map 생성 버튼 클릭 이벤트
+        btnGenerateAnomaly.addEventListener('click', async () => {
+            try {
+                if (baseLinePath && otherLinePath) {
+                    await runDistOnnx(baseLinePath, otherLinePath, false);
+                } else {
+                    showHelpMessage('기준 라인과 다른 라인 폴더를 모두 선택해주세요.');
+                }
+            } catch (error) {
+                console.error('Error generating anomaly maps:', error);
+                showHelpMessage('Anomaly map 생성 중 오류가 발생했습니다: ' + error.message);
+            }
+        });
+
+        // C,D 의 Anomaly map 생성 버튼 클릭 이벤트
+        btnGenerateAlignedAnomaly.addEventListener('click', async () => {
+            try {
+                if (!alignedBaseLinePath || !alignedOtherLinePath) {
+                    showHelpMessage('정렬된 이미지 폴더가 필요합니다. 먼저 이미지 정렬을 실행해주세요.');
+                    return;
+                }
+
+                // 최적 파라미터 확인
+                if (!bestParams) {
+                    showHelpMessage('최적 증강 파라미터가 필요합니다. 먼저 최적 증강 학습을 실행해주세요.');
+                    return;
+                }
+
+                await runDistOnnx(alignedBaseLinePath, alignedOtherLinePath, true, bestParams);
+                // C,D anomaly maps가 생성되면 배포 버튼 활성화
+                btnDeploy.disabled = false;
+            } catch (error) {
+                console.error('Error generating aligned anomaly maps:', error);
+                showHelpMessage('정렬된 이미지의 Anomaly map 생성 중 오류가 발생했습니다: ' + error.message);
+            }
+        });
+
+        // 전체 초기화 버튼 클릭 이벤트
+        btnResetAll.addEventListener('click', async () => {
+            try {
+                // 사용자 확인 메시지
+                const result = await window.electronAPI.showMessageBox({
+                    type: 'question',
+                    title: '전체 초기화 확인',
+                    message: '모든 데이터와 설정을 초기화하시겠습니까?\n이 작업은 되돌릴 수 없습니다.',
+                    buttons: ['취소', '초기화'],
+                    defaultId: 1,
+                    cancelId: 0
+                });
+
+                // 사용자가 '초기화' 버튼을 선택한 경우
+                if (result.response === 1) {
+                    // 진행 상태 바 초기화
+                    progressOriginal.style.width = '0%';
+                    progressOriginal.setAttribute('aria-valuenow', '0');
+                    progressSort.style.width = '0%';
+                    progressSort.setAttribute('aria-valuenow', '0');
+                    progressDeploy.style.width = '0%';
+                    progressDeploy.setAttribute('aria-valuenow', '0');
+
+                    // 경로 변수 초기화
+                    baseLinePath = null;
+                    otherLinePath = null;
+                    alignedBaseLinePath = null;
+                    alignedOtherLinePath = null;
+                    baseLineAnomalyPath = null;
+                    otherLineAnomalyPath = null;
+                    alignedBaseLineAnomalyPath = null;
+                    alignedOtherLineAnomalyPath = null;
+
+                    // 버튼 상태 초기화
+                    btnSort.disabled = true;
+                    btnAugment.disabled = true;
+                    btnDeploy.disabled = true;
+                    btnGenerateAnomaly.disabled = true;
+                    btnGenerateAlignedAnomaly.disabled = true;
+
+                    // HPO 상태 초기화
+                    currentStudyId = null;
+                    document.getElementById('studyIdValue').textContent = '';
+                    document.getElementById('trialCounterText').textContent = 'Trial: 0';
+                    currentTrial = 0;
+                    totalTrials = 300;
+                    bestParams = null;
+
+                    // 첫 경로 선택 플래그 재설정
+                    isFirstTimePathsSelected = true;
+
+                    // 이미지 컨테이너 비우기
+                    baseLineImagesContainer.innerHTML = '';
+                    otherLineImagesContainer.innerHTML = '';
+                    baseLineAnomalyImagesContainer.innerHTML = '';
+                    otherLineAnomalyImagesContainer.innerHTML = '';
+                    alignedBaseLineImagesContainer.innerHTML = '';
+                    alignedOtherLineImagesContainer.innerHTML = '';
+                    alignedBaseLineAnomalyImagesContainer.innerHTML = '';
+                    alignedOtherLineAnomalyImagesContainer.innerHTML = '';
+
+                    // localStorage 상태도 비움
+                    localStorage.removeItem('iqgenState');
+
+                    showHelpMessage('전체 초기화가 완료되었습니다.');
+                }
+            } catch (error) {
+                console.error('Error resetting application:', error);
+                showHelpMessage('초기화 중 오류가 발생했습니다: ' + error.message);
+            }
+        });
+
+        // 탭 활성화 이벤트 리스너 등록 (index.html에서 보내는 이벤트)
+        if (window.electronAPI && window.electronAPI.onTabEvent) {
+            window.electronAPI.onTabEvent((event) => {
+                console.log('Tab event received:', event);
+
+                if (event === 'focus' || event === 'activated') {
+                    // 탭이 활성화될 때 상태를 다시 확인하고 이벤트 리스너 재등록
+                    refreshHpoStatus();
+                }
+            });
+        }
+
+        // HPO 상태 갱신 및 이벤트 리스너 재등록
+        async function refreshHpoStatus() {
+            try {
+                if (window.electronAPI && window.electronAPI.checkHpoStatus) {
+                    const status = await window.electronAPI.checkHpoStatus();
+                    console.log('HPO status refresh on tab activation:', status);
+
+                    // HPO 실행 중이면 상태 업데이트 및 리스너 등록
+                    if (status.isRunning) {
+                        augmentationRunning = true;
+                        btnAugment.disabled = true;
+
+                        // 최신 상태가 있으면 UI 업데이트
+                        if (currentTrial > 0) {
+                            document.getElementById('trialCounterText').textContent = `Trial: ${currentTrial}`;
+                        }
+
+                        // 진행 상황 리스너 재등록
+                        if (window.electronAPI.onAugmentationProgress) {
+                            console.log('Re-registering for augmentation progress updates');
+                            window.electronAPI.onAugmentationProgress(updateAugmentationProgress);
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('Error refreshing HPO status:', error);
+            }
+        }
+
+        // Load saved state from localStorage (for tab persistence)
+        document.addEventListener('DOMContentLoaded', async () => {
+            loadSavedState();
+
+            // 페이지 로드 시 HPO 프로세스 상태 확인
+            try {
+                if (window.electronAPI && window.electronAPI.checkHpoStatus) {
+                    const status = await window.electronAPI.checkHpoStatus();
+                    console.log('HPO status check on page load:', status);
+
+                    // 실행 중인 경우 버튼 비활성화 및 상태 업데이트
+                    if (status.isRunning) {
+                        augmentationRunning = true;
+                        btnAugment.disabled = true;
+
+                        // 진행 중인 프로세스의 업데이트를 받기 위해 이벤트 리스너 등록
+                        if (window.electronAPI.onAugmentationProgress) {
+                            window.electronAPI.onAugmentationProgress(updateAugmentationProgress);
+                        }
+
+                        // 상태 저장
+                        saveCurrentState();
+                    }
+                }
+            } catch (error) {
+                console.error('Error checking HPO status:', error);
+            }
+
+            // C,D anomaly maps 생성 버튼 초기 상태 설정
+            btnGenerateAlignedAnomaly.disabled = !bestParams;
+        });
+
         // Help message handlers
         btnBaseLineHelp.addEventListener('click', () => {
-            showHelpMessage('학습 기준이 될 라인에서 생성한 이미지들이 있는 경로를 선택합니다.');
+            showHelpMessage('학습 기준이 될 라인에서 촬영한 이미지들이 있는 경로를 선택합니다.');
         });
 
         btnOtherLineHelp.addEventListener('click', () => {
-            showHelpMessage('일반화 할 다른 라인에서 생성한 이미지들이 있는 경로를 선택합니다.');
+            showHelpMessage('일반화 할 다른 라인(IQ 편차가 있는 라인)에서 촬영한 이미지들이 있는 경로를 선택합니다.');
+        });
+
+        document.getElementById('btnStudyIdHelp').addEventListener('click', () => {
+            showHelpMessage('학습 진행 상황 확인 방법:\n\n1. 좌측의 Dashboard 탭을 클릭하면 학습 진행 상황을 확인할 수 있습니다.\n\n2. 현재 진행 중인 학습을 찾으려면:\n   - 이 화면의 Study ID를 복사하여 Dashboard에서 검색하거나\n   - Dashboard에서 최신순 정렬 시 맨 위에 표시되는 항목을 확인하세요.\n\n3. 학습 완료 시점:\n   - Dashboard에서 IQ편차가 더 이상 줄어들지 않을 때 학습을 중단해도 됩니다(보통 trial 100회 정도 필요합니다).\n   - 중단 버튼을 누른 후, 찾아낸 최적 파라미터로 최종 모델 배포를 진행하세요.\n\n4. 결과 해석:\n   - Dashboard의 History 그래프 값이 높을수록 두 라인 간 IQ편차가 작다는 의미입니다.');
         });
 
         // Path selection handlers
@@ -288,6 +821,9 @@
 
                     // Check if both paths are selected
                     checkBothPathsSelected();
+
+                    // Save the current state
+                    saveCurrentState();
                 }
             } catch (error) {
                 console.error('Error selecting directory:', error);
@@ -319,6 +855,9 @@
 
                     // Check if both paths are selected
                     checkBothPathsSelected();
+
+                    // Save the current state
+                    saveCurrentState();
                 }
             } catch (error) {
                 console.error('Error selecting directory:', error);
@@ -368,8 +907,12 @@
 
                         // 다음 버튼 활성화
                         btnAugment.disabled = false;
+                        btnGenerateAlignedAnomaly.disabled = false;
 
                         showHelpMessage('이미지 정렬이 완료되었습니다.');
+
+                        // Save the current state
+                        saveCurrentState();
                     } else {
                         // 정렬 실패
                         progressSort.style.width = '0%';
@@ -391,21 +934,183 @@
             }
         });
 
+        // Reset button event handler
+        btnResetAugment.addEventListener('click', async () => {
+            try {
+                console.log('초기화 버튼 클릭됨');
+
+                // 사용자 확인 메시지
+                const result = await window.electronAPI.showMessageBox({
+                    type: 'question',
+                    title: '초기화 확인',
+                    message: '최적 증강 학습을 초기화하시겠습니까?\n실행 중인 프로세스가 종료됩니다.',
+                    buttons: ['취소', '초기화'],
+                    defaultId: 1,
+                    cancelId: 0
+                });
+
+                // 사용자가 '초기화' 버튼을 선택한 경우
+                if (result.response === 1) {
+                    // 프로세스 종료 요청
+                    if (window.electronAPI && window.electronAPI.killHpoProcess) {
+                        await window.electronAPI.killHpoProcess();
+                    }
+
+                    // UI 초기화
+                    document.getElementById('trialCounterText').textContent = 'Trial: 0';
+                    document.getElementById('studyIdValue').textContent = '';
+
+                    // 상태 초기화
+                    augmentationRunning = false;
+                    augmentationStartTime = null;
+                    currentTrial = 0;
+                    totalTrials = 300;
+                    bestParams = null;
+                    currentStudyId = null;
+
+                    // 버튼 상태 업데이트
+                    btnAugment.disabled = false;
+                    btnDeploy.disabled = true;
+
+                    // 상태 저장
+                    saveCurrentState();
+
+                    showHelpMessage('최적 증강 학습이 초기화되었습니다.');
+                }
+            } catch (error) {
+                console.error('Error during reset:', error);
+                showHelpMessage('초기화 중 오류가 발생했습니다: ' + error.message);
+            }
+        });
+
+        // Stop button event handler
+        btnStopAugment.addEventListener('click', async () => {
+            try {
+                console.log('중단 버튼 클릭됨');
+
+                // 실행 중인지 확인
+                if (!augmentationRunning) {
+                    showHelpMessage('실행 중인 최적 증강 학습이 없습니다.');
+                    return;
+                }
+
+                // 사용자 확인 메시지
+                const result = await window.electronAPI.showMessageBox({
+                    type: 'question',
+                    title: '중단 확인',
+                    message: '최적 증강 학습을 중단하시겠습니까?\n현재까지의 최적 파라미터가 유지됩니다.',
+                    buttons: ['취소', '중단'],
+                    defaultId: 1,
+                    cancelId: 0
+                });
+
+                // 사용자가 '중단' 버튼을 선택한 경우
+                if (result.response === 1) {
+                    // 프로세스 종료 요청
+                    if (window.electronAPI && window.electronAPI.killHpoProcess) {
+                        await window.electronAPI.killHpoProcess();
+                    }
+
+                    // 상태 업데이트
+                    augmentationRunning = false;
+
+                    // 버튼 상태 업데이트
+                    btnAugment.disabled = false;
+                    btnDeploy.disabled = false;
+
+                    // UI 업데이트 - 완료 상태로 표시
+                    document.getElementById('trialCounterText').textContent = `Trial: ${currentTrial} (중단됨)`;
+
+                    // 상태 저장
+                    saveCurrentState();
+
+                    showHelpMessage('최적화가 완료되었습니다. 최종 모델 배포를 클릭하세요.');
+                }
+            } catch (error) {
+                console.error('Error during stop:', error);
+                showHelpMessage('중단 중 오류가 발생했습니다: ' + error.message);
+            }
+        });
+
+        // Check best parameters button event handler
+        btnCheckBestParams.addEventListener('click', () => {
+            try {
+                console.log('현재 최적 파라미터 확인 버튼 클릭됨');
+
+                // 베스트 파라미터가 있는지 확인
+                if (!bestParams) {
+                    showHelpMessage('아직 최적 파라미터 정보가 없습니다. 최적 증강 학습을 실행하세요.');
+                    return;
+                }
+
+                // 파라미터 값을 보기 좋게 포맷팅
+                const formattedParams = Object.entries(bestParams)
+                    .map(([key, value]) => `${key}: ${typeof value === 'number' ? value.toFixed(4) : value}`)
+                    .join('\n');
+
+                // 메시지 박스로 표시
+                showHelpMessage(`현재 최적 파라미터:\n${formattedParams}`);
+            } catch (error) {
+                console.error('Error checking best parameters:', error);
+                showHelpMessage('파라미터 확인 중 오류가 발생했습니다: ' + error.message);
+            }
+        });
+
         btnAugment.addEventListener('click', async () => {
             try {
-                showHelpMessage('80% 는 메모리뱅크 생성에 사용하고 20% 는 테스트에 사용합니다. 진행 결과는 좌측에 Dashboard 에 새로 생성된 study 를 클릭하여 확인하세요.');
+                console.log('최적 증강 실행 버튼 클릭됨');
 
-                // Update progress bar
-                progressAugment.style.width = '100%';
-                progressAugment.setAttribute('aria-valuenow', '100');
+                // 경로가 선택되었는지 확인
+                if (!alignedBaseLinePath || !alignedOtherLinePath) {
+                    showHelpMessage('정렬된 이미지가 필요합니다. 먼저 이미지 정렬을 실행해주세요.');
+                    return;
+                }
 
-                // Simulate augmentation process
-                await simulateProcess('증강 학습 중...');
+                // 버튼 비활성화 및 진행 상태 초기화
+                btnAugment.disabled = true;
+                document.getElementById('trialCounterText').textContent = 'Trial: 0';
+                document.getElementById('studyIdValue').textContent = '';
+                currentTrial = 0;
+                totalTrials = 300; // 기본값
+                bestParams = null;
 
-                // Enable the next button
-                btnDeploy.disabled = false;
+                // 시작 시간 기록
+                augmentationStartTime = Date.now();
+
+                // 이전 study_id 정보 초기화
+                currentStudyId = null;
+
+                // 진행 상황 리스너 설정
+                if (window.electronAPI && window.electronAPI.onAugmentationProgress) {
+                    window.electronAPI.onAugmentationProgress(updateAugmentationProgress);
+                } else {
+                    console.error('electronAPI.onAugmentationProgress is not available');
+                    showHelpMessage('이벤트 리스너를 설정할 수 없습니다. 애플리케이션을 재시작해주세요.');
+                    btnAugment.disabled = false;
+                    return;
+                }
+
+                // HPO 스크립트 실행
+                augmentationRunning = true;
+                saveCurrentState();
+
+                // 실제 Python 스크립트 실행
+                if (window.electronAPI && window.electronAPI.runHpoOnnx) {
+                    window.electronAPI.runHpoOnnx(alignedBaseLinePath, alignedOtherLinePath);
+                } else {
+                    console.error('electronAPI.runHpoOnnx is not available');
+                    showHelpMessage('Python 스크립트를 실행할 수 없습니다. 애플리케이션을 재시작해주세요.');
+                    btnAugment.disabled = false;
+                    augmentationRunning = false;
+                    return;
+                }
+
+                showHelpMessage('최적 증강 학습이 시작되었습니다. 이 과정은 시간이 걸릴 수 있습니다.');
+
             } catch (error) {
                 console.error('Error during augmentation:', error);
+                btnAugment.disabled = false;
+                augmentationRunning = false;
                 showHelpMessage('증강 학습 중 오류가 발생했습니다: ' + error.message);
             }
         });
@@ -418,20 +1123,69 @@
                     throw new Error('electronAPI를 찾을 수 없습니다. preload 스크립트가 로드되지 않았습니다.');
                 }
 
+                // Check if aligned paths exist
+                if (!alignedBaseLinePath || !alignedOtherLinePath) {
+                    showHelpMessage('정렬된 이미지 폴더가 없습니다. 먼저 정렬 실행을 진행해주세요.');
+                    return;
+                }
+
+                // Check if aligned anomaly maps exist
+                if (!alignedBaseLineAnomalyPath || !alignedOtherLineAnomalyPath) {
+                    showHelpMessage('C,D 의 Anomaly Maps가 필요합니다. 먼저 C,D 의 anomaly map 생성을 진행해주세요.');
+                    return;
+                }
+
+                // Check if best parameters exist
+                if (!bestParams) {
+                    showHelpMessage('최적 증강 파라미터가 필요합니다. 먼저 최적 증강 학습을 실행해주세요.');
+                    return;
+                }
+
                 const result = await window.electronAPI.openDirectoryDialog({ title: '모델 배포 경로 선택' });
                 console.log('openDirectoryDialog 결과:', result);
 
                 if (!result.canceled && result.filePaths.length > 0) {
                     const deployPath = result.filePaths[0];
 
-                    // Update progress bar
-                    progressDeploy.style.width = '100%';
-                    progressDeploy.setAttribute('aria-valuenow', '100');
+                    // Store original button text and disable button during deployment
+                    const originalButtonText = btnDeploy.textContent;
+                    btnDeploy.disabled = true;
+                    btnDeploy.textContent = "배포 중...";
 
-                    // Simulate deployment process
-                    await simulateProcess('모델 배포 중...');
+                    try {
+                        // Copy required files to the selected path
+                        const sourceFiles = [
+                            'project/python_scripts/memory_dist/nnscorer_search_index.faiss',
+                            'project/python_scripts/models/model.onnx'
+                        ];
 
-                    showHelpMessage(`모델이 성공적으로 배포되었습니다: ${deployPath}`);
+                        // Create a best_params.json file with the current best parameters
+                        const bestParamsJson = JSON.stringify(bestParams, null, 2);
+
+                        // Copy files and save best parameters
+                        const copyResult = await window.electronAPI.deployModel({
+                            sourceFiles: sourceFiles,
+                            destinationPath: deployPath,
+                            bestParams: bestParamsJson
+                        });
+
+                        if (copyResult.success) {
+                            // Update progress to 100% when deployment is complete
+                            progressDeploy.style.width = '100%';
+                            progressDeploy.setAttribute('aria-valuenow', '100');
+
+                            showHelpMessage(`모델이 성공적으로 배포되었습니다: ${deployPath}`);
+                        } else {
+                            throw new Error(copyResult.error || '파일 복사 중 오류가 발생했습니다.');
+                        }
+                    } catch (error) {
+                        console.error('Error copying files:', error);
+                        showHelpMessage(`파일 복사 중 오류가 발생했습니다: ${error.message}`);
+                    } finally {
+                        // Restore button state
+                        btnDeploy.textContent = originalButtonText;
+                        btnDeploy.disabled = false;
+                    }
                 }
             } catch (error) {
                 console.error('Error during deployment:', error);
@@ -443,6 +1197,7 @@
         function checkBothPathsSelected() {
             if (baseLinePath && otherLinePath) {
                 btnSort.disabled = false;
+                btnGenerateAnomaly.disabled = false;
 
                 // Show first-time instructions
                 if (isFirstTimePathsSelected) {
@@ -452,6 +1207,8 @@
 
                 // Check if aligned folders already exist with all images
                 checkAlignedFolders();
+            } else {
+                btnGenerateAnomaly.disabled = true;
             }
         }
 
@@ -459,10 +1216,29 @@
             try {
                 const possibleBaseAligned = baseLinePath + '_aligned';
                 const possibleOtherAligned = otherLinePath + '_aligned';
+                const possibleBaseAnomalyMaps = baseLinePath + '_anomaly_maps';
+                const possibleOtherAnomalyMaps = otherLinePath + '_anomaly_maps';
+                const possibleAlignedBaseAnomalyMaps = possibleBaseAligned + '_anomaly_maps';
+                const possibleAlignedOtherAnomalyMaps = possibleOtherAligned + '_anomaly_maps';
 
-                // Check if aligned directories exist
+                // Check if directories exist
                 const baseAlignedExists = await window.electronAPI.directoryExists(possibleBaseAligned);
                 const otherAlignedExists = await window.electronAPI.directoryExists(possibleOtherAligned);
+                const baseAnomalyMapsExists = await window.electronAPI.directoryExists(possibleBaseAnomalyMaps);
+                const otherAnomalyMapsExists = await window.electronAPI.directoryExists(possibleOtherAnomalyMaps);
+                const alignedBaseAnomalyMapsExists = await window.electronAPI.directoryExists(possibleAlignedBaseAnomalyMaps);
+                const alignedOtherAnomalyMapsExists = await window.electronAPI.directoryExists(possibleAlignedOtherAnomalyMaps);
+
+                // Check for anomaly maps and load if they exist
+                if (baseAnomalyMapsExists) {
+                    baseLineAnomalyPath = possibleBaseAnomalyMaps;
+                    await loadImages(baseLineAnomalyPath, baseLineAnomalyImagesContainer);
+                }
+
+                if (otherAnomalyMapsExists) {
+                    otherLineAnomalyPath = possibleOtherAnomalyMaps;
+                    await loadImages(otherLineAnomalyPath, otherLineAnomalyImagesContainer);
+                }
 
                 if (baseAlignedExists && otherAlignedExists) {
                     // Get file lists from all directories
@@ -497,13 +1273,31 @@
                         progressSort.setAttribute('aria-valuenow', '100');
                         btnAugment.disabled = false;
                         btnSort.disabled = true;
+                        btnGenerateAlignedAnomaly.disabled = false;
 
                         // Load aligned images
                         await loadImages(alignedBaseLinePath, alignedBaseLineImagesContainer);
                         await loadImages(alignedOtherLinePath, alignedOtherLineImagesContainer);
 
+                        // Check for aligned anomaly maps and load if they exist
+                        if (alignedBaseAnomalyMapsExists) {
+                            alignedBaseLineAnomalyPath = possibleAlignedBaseAnomalyMaps;
+                            await loadImages(alignedBaseLineAnomalyPath, alignedBaseLineAnomalyImagesContainer);
+                        }
+
+                        if (alignedOtherAnomalyMapsExists) {
+                            alignedOtherLineAnomalyPath = possibleAlignedOtherAnomalyMaps;
+                            await loadImages(alignedOtherLineAnomalyPath, alignedOtherLineAnomalyImagesContainer);
+
+                            // Enable deploy button if aligned anomaly maps exist
+                            btnDeploy.disabled = false;
+                        }
+
                         // Show message
                         showHelpMessage('이미 정렬완료된 데이터입니다.');
+
+                        // Save the current state
+                        saveCurrentState();
                     }
                 }
             } catch (error) {
@@ -582,6 +1376,145 @@
                     resolve();
                 }, 1500);
             });
+        }
+
+        // Function to run dist_onnx.py to generate anomaly maps
+        async function runDistOnnx(inputPath1, inputPath2, isFinished = false, params = null) {
+            try {
+                console.log(`Running dist_onnx.py for paths: ${inputPath1}, ${inputPath2}, isFinished: ${isFinished}`);
+
+                if (!window.electronAPI || !window.electronAPI.runPythonScript) {
+                    throw new Error("electronAPI.runPythonScript is not available");
+                }
+
+                // Store original button text
+                const targetButton = isFinished ? btnGenerateAlignedAnomaly : btnGenerateAnomaly;
+                const originalButtonText = targetButton.textContent;
+
+                // Disable both anomaly generation buttons during execution
+                btnGenerateAnomaly.disabled = true;
+                btnGenerateAlignedAnomaly.disabled = true;
+
+                // Set initial progress text
+                targetButton.textContent = "준비 중... (0%)";
+
+                showHelpMessage(`이상 감지 맵을 생성 중입니다. 잠시만 기다려주세요...`);
+
+                // Prepare arguments
+                let scriptArgs = [inputPath1, inputPath2];
+
+                // Add ColorJitter parameters if provided (for aligned images)
+                if (isFinished && params) {
+                    if (params.brightness !== undefined) scriptArgs.push('--brightness', params.brightness.toString());
+                    if (params.contrast !== undefined) scriptArgs.push('--contrast', params.contrast.toString());
+                    if (params.saturation !== undefined) scriptArgs.push('--saturation', params.saturation.toString());
+                    if (params.hue !== undefined) scriptArgs.push('--hue', params.hue.toString());
+                }
+
+                // Add --gap 1.0 parameter when generating aligned anomaly maps
+                if (isFinished) {
+                    scriptArgs.push('--gap', '1.0');
+                }
+
+                // Set up a direct progress listener for this specific execution
+                const progressListener = (event, data) => {
+                    try {
+                        console.log("Progress event received:", data);
+                        const progressData = JSON.parse(data);
+                        if (progressData.progress !== undefined) {
+                            const progressPercent = Math.round(progressData.progress);
+                            const status = progressData.status || "처리 중";
+                            targetButton.textContent = `${status}... (${progressPercent}%)`;
+                        }
+                    } catch (e) {
+                        console.error("Error parsing progress data:", e);
+                    }
+                };
+
+                // Register the progress listener
+                window.electronAPI.ipcRenderer.on('python:progress', progressListener);
+
+                // Run dist_onnx.py script
+                const scriptResult = await window.electronAPI.runPythonScript({
+                    scriptName: 'dist_onnx.py',
+                    args: scriptArgs
+                });
+
+                // Remove the progress listener after completion
+                window.electronAPI.ipcRenderer.removeListener('python:progress', progressListener);
+
+                console.log('dist_onnx.py execution result:', scriptResult);
+
+                // Restore original button text
+                targetButton.textContent = originalButtonText;
+
+                if (scriptResult.success) {
+                    // Set anomaly map paths
+                    const anomalyPath1 = `${inputPath1}_anomaly_maps`;
+                    const anomalyPath2 = `${inputPath2}_anomaly_maps`;
+
+                    if (!isFinished) {
+                        // For original images
+                        baseLineAnomalyPath = anomalyPath1;
+                        otherLineAnomalyPath = anomalyPath2;
+
+                        // Load images into the UI
+                        await loadImages(baseLineAnomalyPath, baseLineAnomalyImagesContainer);
+                        await loadImages(otherLineAnomalyPath, otherLineAnomalyImagesContainer);
+
+                        // Re-enable the original anomaly map generation button
+                        btnGenerateAnomaly.disabled = false;
+
+                        // Only enable aligned button if we have aligned paths and best params
+                        btnGenerateAlignedAnomaly.disabled = !(alignedBaseLinePath && alignedOtherLinePath && bestParams);
+                    } else {
+                        // For aligned images
+                        alignedBaseLineAnomalyPath = anomalyPath1;
+                        alignedOtherLineAnomalyPath = anomalyPath2;
+
+                        // Load images into the UI
+                        await loadImages(alignedBaseLineAnomalyPath, alignedBaseLineAnomalyImagesContainer);
+                        await loadImages(alignedOtherLineAnomalyPath, alignedOtherLineAnomalyImagesContainer);
+
+                        // Update progress
+                        progressDeploy.style.width = '50%';
+                        progressDeploy.setAttribute('aria-valuenow', '50');
+
+                        // Enable deploy button after aligned anomaly maps are generated
+                        btnDeploy.disabled = false;
+
+                        // Re-enable the original anomaly map generation buttons
+                        btnGenerateAnomaly.disabled = false;
+                        btnGenerateAlignedAnomaly.disabled = false;
+                    }
+
+                    // Save the current state
+                    saveCurrentState();
+
+                    showHelpMessage('이상 감지 맵 생성이 완료되었습니다.');
+                } else {
+                    // Re-enable buttons on error
+                    btnGenerateAnomaly.disabled = false;
+                    btnGenerateAlignedAnomaly.disabled = !(alignedBaseLinePath && alignedOtherLinePath && bestParams);
+
+                    showHelpMessage(`이상 감지 맵 생성 중 오류가 발생했습니다: ${scriptResult.error || '알 수 없는 오류'}`);
+                }
+            } catch (error) {
+                console.error('Error running dist_onnx.py:', error);
+
+                // Restore buttons on exception
+                btnGenerateAnomaly.disabled = false;
+                btnGenerateAlignedAnomaly.disabled = !(alignedBaseLinePath && alignedOtherLinePath && bestParams);
+
+                // Restore original button text if possible
+                if (isFinished) {
+                    btnGenerateAlignedAnomaly.textContent = "현재 최적 파라미터로 C,D 의 anomaly map 생성";
+                } else {
+                    btnGenerateAnomaly.textContent = "A,B 의 anomaly map 생성";
+                }
+
+                showHelpMessage(`dist_onnx.py 실행 중 오류가 발생했습니다: ${error.message}`);
+            }
         }
     </script>
 </body>

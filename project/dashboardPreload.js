@@ -4,20 +4,22 @@ window.addEventListener('DOMContentLoaded', () => {
     console.log('dashboardPreload.js done.');
     try {
         // 1) Dark Mode 스위치가 체크되어 있다면 클릭해서 라이트 모드로 전환
-        // 문제: 시점 문제. 즉, Material-UI(React) 앱이 로드되는 과정에서, DOMContentLoaded가 이미 뜬 뒤에야 해당 스위치가 “마운트”되거나, 체크 상태가 바뀔 수 있음.
-        // 해결: 그래서, MutationObserver 로 “body 내부에 자식이 추가/변경”되는 순간을 계속 감시하다가 darkSwitch가 나타나고 checked=true인 상태가 되면 클릭해서 라이트 모드로 전환합니다.
+        // 문제: 시점 문제. 즉, Material-UI(React) 앱이 로드되는 과정에서, DOMContentLoaded가 이미 뜬 뒤에야 해당 스위치가 "마운트"되거나, 체크 상태가 바뀔 수 있음.
+        // 해결: 그래서, MutationObserver 로 "body 내부에 자식이 추가/변경"되는 순간을 계속 감시하다가 darkSwitch가 나타나고 checked=true인 상태가 되면 클릭해서 라이트 모드로 전환합니다.
         const observer = new MutationObserver((mutations, obs) => {
             let doneDarkMode = false;
             let doneStackText = false;
             let doneToolbarText = false;
 
-            // (1) 다크 모드 스위치 끄기
+            // (1) 다크 모드 스위치 끄기 - 주석 처리하여 다크 모드 유지
+            /*
             const darkSwitch = document.querySelector('input[aria-labelledby="switch-list-label-dark-mode"]');
             if (darkSwitch && darkSwitch.checked) {
                 darkSwitch.click();
                 console.log('Switched to Light Mode');
             }
-            // 스위치가 없거나 이미 꺼져 있어도, 일단 “처리 끝”으로 설정 (무한 반복 방지)
+            */
+            // 스위치가 없거나 이미 꺼져 있어도, 일단 "처리 끝"으로 설정 (무한 반복 방지)
             doneDarkMode = true;
 
             // (2) h5Element "Heechul Lim"으로 변경

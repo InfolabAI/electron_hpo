@@ -13,6 +13,8 @@
         body {
             margin: 0;
             font-family: sans-serif;
+            background-color: #1e1e1e;
+            color: #e0e0e0;
         }
 
         .tab-content {
@@ -36,19 +38,160 @@
             width: 100%;
             height: auto;
             object-fit: contain;
-            border: 1px solid #ddd;
+            border: 1px solid #444;
         }
 
         .folder-path {
             font-weight: bold;
             margin-top: 10px;
             margin-bottom: 5px;
+            color: #e0e0e0;
         }
 
         .step-title {
             font-weight: bold;
             text-align: center;
             margin-bottom: 10px;
+            color: #e0e0e0;
+        }
+
+        /* Dark mode styles for Bootstrap components */
+        .table {
+            color: #e0e0e0;
+            background-color: #2d2d2d;
+        }
+
+        .table-bordered {
+            border-color: #444;
+        }
+
+        .table-secondary {
+            background-color: #2d2d2d;
+            color: #e0e0e0;
+        }
+
+        .table thead th {
+            background-color: #333;
+            color: #e0e0e0;
+            border-color: #444;
+        }
+
+        .table tbody td {
+            background-color: #2d2d2d;
+            border-color: #444;
+        }
+
+        .table-bordered td,
+        .table-bordered th {
+            border-color: #444;
+        }
+
+        .form-control,
+        .form-select {
+            background-color: #2d2d2d;
+            border-color: #444;
+            color: #e0e0e0;
+        }
+
+        .form-control:focus,
+        .form-select:focus {
+            background-color: #2d2d2d;
+            border-color: #666;
+            color: #e0e0e0;
+            box-shadow: 0 0 0 0.25rem rgba(255, 255, 255, 0.1);
+        }
+
+        /* Button styles for dark mode */
+        .btn-warning {
+            background-color: #ffc107;
+            border-color: #ffc107;
+            color: #1e1e1e;
+        }
+
+        .btn-warning:hover {
+            background-color: #ffca2c;
+            border-color: #ffc720;
+            color: #1e1e1e;
+        }
+
+        .btn-success {
+            background-color: #198754;
+            border-color: #198754;
+            color: #fff;
+        }
+
+        .btn-success:hover {
+            background-color: #157347;
+            border-color: #146c43;
+            color: #fff;
+        }
+
+        .btn-primary {
+            background-color: #0d6efd;
+            border-color: #0d6efd;
+            color: #fff;
+        }
+
+        .btn-primary:hover {
+            background-color: #0b5ed7;
+            border-color: #0a58ca;
+            color: #fff;
+        }
+
+        .btn-info {
+            background-color: #0dcaf0;
+            border-color: #0dcaf0;
+            color: #1e1e1e;
+        }
+
+        .btn-info:hover {
+            background-color: #31d2f2;
+            border-color: #25cff2;
+            color: #1e1e1e;
+        }
+
+        .btn-outline-danger {
+            color: #ff6b6b;
+            border-color: #ff6b6b;
+        }
+
+        .btn-outline-danger:hover {
+            background-color: #ff6b6b;
+            color: #1e1e1e;
+        }
+
+        /* IQGen specific styles */
+        .step-container {
+            background-color: #2d2d2d;
+            border: 1px solid #444;
+            border-radius: 5px;
+            padding: 15px;
+            height: 100%;
+        }
+
+        .image-column {
+            background-color: #2d2d2d;
+            border: 1px solid #444;
+            border-radius: 5px;
+            margin: 5px;
+            padding: 10px;
+        }
+
+        .progress {
+            background-color: #444;
+        }
+
+        .progress-bar {
+            background-color: #0d6efd;
+        }
+
+        h1 {
+            color: #e0e0e0;
+        }
+
+        /* Webview styles */
+        webview {
+            background-color: #1e1e1e;
         }
     </style>
 </head>
@@ -299,8 +442,22 @@
             dashboardTab.classList.remove("active");
             iqgenTab.classList.add("active");
 
-            // iqgenTab 내부의 기존 webview가 있으면 제거
+            // 기존 webview가 있는지 확인
             const existingWebview = document.querySelector('#iqgenTab webview');
+
+            // 이미 웹뷰가 존재하고 정상적으로 로드된 상태라면 유지
+            if (existingWebview && existingWebview.getURL && existingWebview.getURL().includes('iqgen.html')) {
+                console.log('IQGen webview already exists, just sending focus');
+                try {
+                    // 웹뷰가 있으면 이미 있는 웹뷰에 focus 이벤트를 보내서 다시 활성화
+                    existingWebview.send('tab:focus');
+                } catch (error) {
+                    console.error('Error sending focus event to existing webview:', error);
+                }
+                return;
+            }
+
+            // 기존 웹뷰 제거 (있는 경우)
             if (existingWebview) {
                 existingWebview.remove();
             }
@@ -323,6 +480,12 @@
                 // 디버깅을 위한 이벤트 리스너 추가
                 webview.addEventListener('dom-ready', () => {
                     console.log('IQGen webview DOM is ready');
+                    // 웹뷰 초기화 완료 후 탭 전환 이벤트 전송
+                    try {
+                        webview.send('tab:activated');
+                    } catch (error) {
+                        console.error('Error sending activation event to webview:', error);
+                    }
                     // 개발 중에는 webview의 개발자 도구를 열어 디버깅
                     // webview.openDevTools();
                 });
@@ -593,8 +756,7 @@
         function registerBlurValidator(el, validatorFn, message) {
             el.addEventListener('blur', () => {
                 if (validatorFn(el.value) && el.value !== '') {
-                    // Blur 이벤트 직후에 곧바로 메시지를 띄우면 환경에 따라 포커스 문제가 생길 수 있으므로
-                    // setTimeout(…, 0)을 이용해 이벤트 루프가 한 번 돌고 난 뒤에 메시지를 띄움
+                    // Blur 이벤트 직후에 곧바로 메시지를 띄움
                     setTimeout(() => {
                         showTemporaryMessage(message, 3000);
                         el.value = ''; // 잘못된 값 제거

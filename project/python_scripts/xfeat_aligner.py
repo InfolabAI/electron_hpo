@@ -308,7 +308,7 @@ def main():
     parser.add_argument('line_a_path', help='첫 번째 이미지 라인 폴더 경로')
     parser.add_argument('line_b_path', help='두 번째 이미지 라인 폴더 경로')
     parser.add_argument('--root', help='root 폴더')
-    parser.add_argument('--model_path', default="python_scripts/models/xfeat_model_512_5000.onnx", help='ONNX 모델 파일 경로')
+    parser.add_argument('--model_path', default="models/xfeat_model_512_5000.onnx", help='ONNX 모델 파일 경로')
     parser.add_argument('--save_vis', action='store_true', help='시각화 결과 저장 여부')
     
     args = parser.parse_args()

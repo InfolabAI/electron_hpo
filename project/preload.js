@@ -8,6 +8,39 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getDashboardPreloadPath: () => ipcRenderer.invoke('get-dashboard-preload-path'),
     getIQGenPreloadPath: () => ipcRenderer.invoke('getIQGenPreloadPath'),
 
+    // File system and dialog operations
+    openDirectoryDialog: (options) => ipcRenderer.invoke('dialog:openDirectory', options),
+    showMessageBox: (options) => ipcRenderer.invoke('dialog:showMessageBox', options),
+    readDirectory: (dirPath) => ipcRenderer.invoke('fs:readDirectory', dirPath),
+    directoryExists: (dirPath) => ipcRenderer.invoke('fs:directoryExists', dirPath),
+
+    // Model operations
+    deployModel: (options) => {
+        console.log('preload.js: deployModel called with options:', options);
+        if (!options) {
+            console.error('deployModel: options is null or undefined');
+            return ipcRenderer.invoke('model:deploy', {});
+        }
+
+        return ipcRenderer.invoke('model:deploy', options);
+    },
+
+    // HPO operations
+    checkHpoStatus: () => ipcRenderer.invoke('hpo:checkStatus'),
+    killHpoProcess: () => ipcRenderer.invoke('hpo:kill'),
+
+    // Python script execution
+    runPythonScript: (options) => ipcRenderer.invoke('python:run', options),
+
+    // Image processing
+    processImage: (options) => ipcRenderer.invoke('image:process', options),
+
+    // Alignment operations
+    alignImages: (baseLinePath, otherLinePath) => ipcRenderer.invoke('align:images', baseLinePath, otherLinePath),
+
+    // HPO operations
+    runHpoOnnx: (baseLinePath, otherLinePath) => ipcRenderer.invoke('hpo:runOnnx', baseLinePath, otherLinePath),
+
     // stdout/stderr/close/error 이벤트 실시간 수신
     onCommandStdout: (callback) => {
         ipcRenderer.on('command-stdout', (event, data) => {
@@ -29,4 +62,31 @@ contextBridge.exposeInMainWorld('electronAPI', {
             callback(errMsg);
         });
     },
+
+    // Progress events
+    onAlignmentProgress: (callback) => {
+        ipcRenderer.on('alignment:progress', (event, progress) => {
+            callback(progress);
+        });
+    },
+    onAlignmentComplete: (callback) => {
+        ipcRenderer.on('alignment:complete', (event, result) => {
+            callback(result);
+        });
+    },
+    onAugmentationProgress: (callback) => {
+        ipcRenderer.on('augmentation:progress', (event, data) => {
+            callback(data);
+        });
+    },
+
+    // Tab events
+    onTabEvent: (callback) => {
+        ipcRenderer.on('tab:event', (event, eventType) => {
+            callback(eventType);
+        });
+    },
+
+    // For direct IPC communication
+    ipcRenderer: ipcRenderer
 });
