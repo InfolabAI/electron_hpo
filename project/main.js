@@ -2,7 +2,8 @@ const { app, BrowserWindow, ipcMain, Menu, dialog } = require('electron');
 const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
-const unzipper = require('unzipper');
+const Seven = require('node-7z');
+const sevenBin = require('7zip-bin');
 const util = require('util');
 const exec = util.promisify(require('child_process').exec);
 const { pathToFileURL } = require('url');
@@ -49,7 +50,7 @@ function getPaths() {
 async function ensurePythonEnv() {
     if (isDev) {
         console.log('[DEBUG] 개발 모드 → 압축 해제 스킵');
-        return;
+        //return;
     }
 
     const { zipFile, pyEnvDir, testLocalServerPy, testLocalServerExe, pythonExe, forAddData } = getPaths();
@@ -60,23 +61,125 @@ async function ensurePythonEnv() {
         return;
     }
 
-    openStatusWindow('<h3>Initializing Environment</h3>');
-    const log = (msg) => { console.log(msg); updateStatusWindow(msg + '<br>'); };
+    openStatusWindow('환경 초기화 중...');
 
-    // 1) Python 압축 해제
-    log('[INFO] Setup Python environment...');
+    // 1) Python 압축 해제 - 7zip으로 교체
+    updateStatusWindow('Python 환경 구성 시작...');
     try {
-        await fs.createReadStream(zipFile).pipe(unzipper.Extract({ path: pyEnvDir })).promise();
-        log('[INFO] Python env decompressed');
+        // 7-Zip 바이너리 경로 확인 - OS별 처리
+        let zipPath;
+        if (process.platform === 'linux') {
+            // Linux에서는 7za 경로를 직접 지정
+            zipPath = path.join(process.cwd(), 'node_modules/7zip-bin/linux/x64/7za');
+        } else if (process.platform === 'win32') {
+            // Windows에서는 7z.exe 경로를 직접 지정
+            zipPath = path.join(process.cwd(), 'node_modules/7zip-bin/win/x64/7z.exe');
+        } else if (process.platform === 'darwin') {
+            // macOS에서는 7za 경로를 직접 지정
+            zipPath = path.join(process.cwd(), 'node_modules/7zip-bin/mac/x64/7za');
+        } else {
+            // 기타 OS는 기본 path7 사용 시도
+            zipPath = sevenBin.path7;
+        }
+
+        console.log(`[INFO] Using 7-Zip at: ${zipPath}`);
+        updateStatusWindow(`7-Zip 경로: ${zipPath}`);
+
+        if (!fs.existsSync(zipPath)) {
+            throw new Error(`7-Zip executable not found at: ${zipPath}`);
+        }
+
+        // 7-Zip 실행
+        const extractStream = Seven.extract(zipFile, pyEnvDir, {
+            $bin: zipPath,
+            $progress: true
+        });
+
+        // 진행 상황 표시
+        let lastPercentage = 0;
+
+        // 초기 상태창 설정
+        updateStatusWindow('압축 해제를 시작합니다...');
+
+        extractStream.on('progress', (progress) => {
+            if (progress.percent !== undefined) {
+                const percentage = Math.round(progress.percent);
+
+                // 이전 백분율과 같으면 업데이트하지 않음 (너무 자주 업데이트되는 것 방지)
+                if (percentage === lastPercentage && percentage !== 100) return;
+                lastPercentage = percentage;
+
+                // 프로그레스 바 생성 (30칸 길이)
+                const barLength = 30;
+                const completeLength = Math.floor(percentage / 100 * barLength);
+                const remainingLength = barLength - completeLength;
+                const bar = '█'.repeat(completeLength) + '░'.repeat(remainingLength);
+
+                // 프로그레스 바와 함께 진행률 표시 (줄바꿈 없이 같은 라인 업데이트)
+                process.stdout.write(`\r[INFO] 압축 해제 진행률: [${bar}] ${percentage}%`);
+
+                // 상태창에 진행률 전달 (객체 형태)
+                updateStatusWindow({
+                    progress: percentage,
+                    message: percentage === 100 ? '압축 해제 완료됨' : `압축 해제 진행 중: ${percentage}%`
+                });
+
+                // 100%일 때 줄바꿈 추가
+                if (percentage === 100) {
+                    process.stdout.write('\n');
+                }
+            }
+        });
+
+        // 압축 해제 완료 대기
+        await new Promise((resolve, reject) => {
+            extractStream.on('end', () => {
+                console.log('\n[INFO] Python 환경 압축 해제 완료');
+                updateStatusWindow({
+                    progress: 100,
+                    message: '압축 해제가 성공적으로 완료되었습니다.'
+                });
+                resolve();
+            });
+
+            extractStream.on('error', (err) => {
+                console.error('\n[ERROR] 압축 해제 실패:', err);
+                // 오류 발생 시 상태창 업데이트
+                statusWindow.webContents.executeJavaScript(`
+                    document.getElementById('statusText').textContent = '압축 해제 실패: ${err.message.replace(/'/g, "\\'")}';
+                    document.getElementById('statusText').classList.add('error');
+                `).catch(console.error);
+                reject(err);
+            });
+        });
     } catch (err) {
-        log('[ERROR] Decompression failed'); console.error(err);
+        console.error('[ERROR] Decompression failed:', err.message);
+        updateStatusWindow({
+            progress: 100,
+            message: `압축 해제 실패: ${err.message}`
+        });
+
+        // 오류 발생 시 상태창 업데이트
+        statusWindow.webContents.executeJavaScript(`
+            document.getElementById('statusText').classList.add('error');
+        `).catch(console.error);
     }
 
     // 2) PyInstaller 빌드
-    log('[INFO] Building files...');
+    updateStatusWindow({
+        progress: 0,
+        message: 'PyInstaller 빌드 시작...'
+    });
+
     try {
         // 작업 디렉토리를 testLocalServerPy가 있는 디렉토리로 설정
         const workingDirectory = path.dirname(testLocalServerPy);
+
+        // 빌드 진행 중임을 표시
+        updateStatusWindow({
+            progress: 50,
+            message: 'PyInstaller로 파이썬 스크립트를 EXE로 변환 중...'
+        });
 
         await exec(
             `"${pythonExe}" -m PyInstaller --add-data "${forAddData}" --onefile --console --distpath "${path.dirname(testLocalServerExe)}" "${testLocalServerPy}"`,
@@ -84,9 +187,32 @@ async function ensurePythonEnv() {
         );
 
         fs.unlinkSync(testLocalServerPy); // 빌드 후 사용했던 스크립트 제거
-        log('[INFO] Build & cleanup finished');
+
+        // 빌드 완료
+        updateStatusWindow({
+            progress: 100,
+            message: '빌드 및 정리 완료!'
+        });
+
+        console.log('[INFO] Build & cleanup finished');
+
+        // 완료 후 잠시 대기
+        setTimeout(() => {
+            closeStatusWindow();
+        }, 3000);
     } catch (err) {
-        log('[ERROR] Build failed'); console.error(err);
+        updateStatusWindow({
+            progress: 100,
+            message: `빌드 실패: ${err.message}`
+        });
+
+        // 오류 발생 시 상태창 업데이트
+        statusWindow.webContents.executeJavaScript(`
+            document.getElementById('statusText').classList.add('error');
+        `).catch(console.error);
+
+        console.error('[ERROR] Build failed');
+        console.error(err);
     }
 
     // 3) 최종 확인
@@ -1368,29 +1494,11 @@ async function runPythonScript(options) {
             // 프로세스 시작 오류 처리
             childProcess.on('error', (err) => {
                 console.error(`[${scriptName}] failed to start:`, err);
-                resolve({
-                    success: false,
-                    error: err.message
-                });
+                reject(err);
             });
-        } catch (error) {
-            console.error(`[ERROR] Failed to run ${scriptName}:`, error);
-            resolve({
-                success: false,
-                error: error.message
-            });
+        } catch (err) {
+            console.error(`[${scriptName}] error:`, err);
+            reject(err);
         }
     });
 }
-
-/** Python 스크립트 실행 핸들러 */
-ipcMain.handle('python:run', async (event, options) => {
-    try {
-        // 이벤트 객체 전달하여 진행 상황을 해당 윈도우로 직접 전송할 수 있도록 함
-        options.event = event;
-        return await runPythonScript(options);
-    } catch (error) {
-        console.error('[ERROR] python:run handler error:', error);
-        return { success: false, error: error.message };
-    }
-});
