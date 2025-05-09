@@ -104,6 +104,9 @@ function createWindow() {
     const win = new BrowserWindow({
         width: 1000,
         height: 700,
+        frame: false, // Remove the default frame/titlebar
+        titleBarStyle: 'hidden', // Hide the title bar
+        backgroundColor: '#1e1e1e', // Match your dark theme background color
         webPreferences: {
             nodeIntegration: false,
             contextIsolation: true,
@@ -113,6 +116,26 @@ function createWindow() {
         },
     });
     win.loadFile('index.html');
+
+    // Start maximized
+    win.maximize();
+
+    // Window control event handlers
+    ipcMain.on('window:minimize', () => {
+        win.minimize();
+    });
+
+    ipcMain.on('window:maximize', () => {
+        if (win.isMaximized()) {
+            win.unmaximize();
+        } else {
+            win.maximize();
+        }
+    });
+
+    ipcMain.on('window:close', () => {
+        win.close();
+    });
 
     return win;
 }
@@ -505,7 +528,7 @@ async function runXFeatAligner(baseLinePath, otherLinePath, event) {
     }
 
     const { base, pyScripts, pythonExe } = getPaths();
-    const alignerScript = path.join(base, 'python_scripts', 'xfeat_aligner.py');
+    const alignerScript = path.join(base, 'iqgen_scripts', 'xfeat_aligner.py');
 
     // 명령어 및 인수 설정
     let command, args;
@@ -516,7 +539,7 @@ async function runXFeatAligner(baseLinePath, otherLinePath, event) {
         // 배포 모드
         command = pythonExe;
     }
-    args = [alignerScript, baseLinePath, otherLinePath, '--root', path.join(base, 'python_scripts')];
+    args = [alignerScript, baseLinePath, otherLinePath, '--root', path.join(base, 'iqgen_scripts')];
 
     console.log('Starting XFeat alignment:', command, args);
 
@@ -699,11 +722,87 @@ async function kill_pyhpo() {
 
 /** HPO 대시보드 종료 */
 async function kill_dashboard() {
+    // 방법 1: 내부 프로세스 참조 사용
     if (dashboardProcess) {
-        dashboardProcess.kill();
-        dashboardProcess = null;
-        await new Promise(resolve => setTimeout(resolve, 500));
+        console.log('[INFO] Killing dashboard process via process reference');
+
+        // 1-1. Promise를 통한 종료 처리
+        const killPromise = new Promise((resolve) => {
+            dashboardProcess.on('close', () => {
+                console.log('[INFO] Dashboard process terminated via kill()');
+                resolve();
+            });
+
+            // 강제 종료 (SIGKILL)
+            dashboardProcess.kill('SIGKILL');
+            dashboardProcess = null;
+        });
+
+        // 1-2. 최대 2초까지만 대기
+        const timeoutPromise = new Promise(resolve => setTimeout(resolve, 2000));
+        await Promise.race([killPromise, timeoutPromise]);
     }
+
+    // 방법 2: 시스템 명령어 사용 (OS별 다른 명령어 실행)
+    try {
+        // OS 타입 확인
+        if (process.platform === 'win32') {
+            // Windows: Python 프로세스 강제 종료
+            console.log('[INFO] Trying to kill Python processes running optuna-dashboard (Windows)');
+            await exec('taskkill /F /FI "WINDOWTITLE eq optuna-dashboard" /FI "IMAGENAME eq python.exe"');
+            // 추가 명령어로 더 확실하게 종료
+            await exec('taskkill /F /IM python.exe /FI "WINDOWTITLE eq *optuna*"');
+        } else {
+            // Linux/Mac: 여러 방법 시도
+            console.log('[INFO] Trying to kill Python processes running optuna-dashboard (Linux/Mac)');
+
+            // 1. pkill 명령 사용 (가장 정확한 방법)
+            try {
+                await exec("pkill -9 -f 'optuna_dashboard'");
+                console.log('[INFO] Successfully killed dashboard with pkill -9');
+            } catch (pkillError) {
+                console.log('[INFO] pkill -9 attempt failed:', pkillError.message);
+            }
+
+            // 2. ps와 grep을 사용하여 PID 찾고 kill 명령 실행
+            try {
+                const { stdout } = await exec("ps -ef | grep 'optuna_dashboard' | grep -v grep | awk '{print $2}'");
+                if (stdout.trim()) {
+                    const pids = stdout.trim().split('\n');
+                    for (const pid of pids) {
+                        if (pid) {
+                            console.log(`[INFO] Killing optuna dashboard process with PID: ${pid}`);
+                            await exec(`kill -9 ${pid}`);
+                        }
+                    }
+                }
+            } catch (killError) {
+                console.log('[INFO] kill attempt failed:', killError.message);
+            }
+
+            // 3. 포트 번호로 프로세스 찾기 (8080 포트 사용중)
+            try {
+                const { stdout: portStdout } = await exec("lsof -i :8080 | grep LISTEN | awk '{print $2}'");
+                if (portStdout.trim()) {
+                    const portPids = portStdout.trim().split('\n');
+                    for (const pid of portPids) {
+                        if (pid) {
+                            console.log(`[INFO] Killing process using port 8080 with PID: ${pid}`);
+                            await exec(`kill -9 ${pid}`);
+                        }
+                    }
+                }
+            } catch (portError) {
+                console.log('[INFO] port-based kill attempt failed:', portError.message);
+            }
+        }
+        console.log('[INFO] Finished killing external dashboard processes');
+    } catch (error) {
+        console.error('[ERROR] Kill dashboard process:', error.message);
+    }
+
+    // 안전 대기
+    await new Promise(resolve => setTimeout(resolve, 1000));
     return true;
 }
 
@@ -843,6 +942,38 @@ ipcMain.handle('fs:directoryExists', async (event, dirPath) => {
         return stats.isDirectory();
     } catch (error) {
         return false;
+    }
+});
+
+// Add handler for checking if files exist
+ipcMain.handle('fs:checkFilesExist', async (event, filePaths) => {
+    const { base } = getPaths();
+
+    try {
+        const results = {};
+        let allExist = true;
+
+        for (const filePath of filePaths) {
+            const fullPath = path.join(base, filePath);
+            try {
+                await fs.promises.access(fullPath, fs.constants.F_OK);
+                results[filePath] = true;
+            } catch (error) {
+                results[filePath] = false;
+                allExist = false;
+            }
+        }
+
+        return {
+            results,
+            allExist
+        };
+    } catch (error) {
+        console.error('Error checking file existence:', error);
+        return {
+            error: error.message,
+            allExist: false
+        };
     }
 });
 
@@ -991,8 +1122,8 @@ async function runHpoOnnx(baseLinePath, otherLinePath, event) {
     const { base } = getPaths();
     // 개발 모드에서는 테스트 스크립트 사용, 그렇지 않으면 실제 스크립트 사용
     const scriptPath = isDev
-        ? path.join(base, 'python_scripts', 'hpo_client.py')
-        : path.join(base, 'python_scripts', 'hpo_client.py');
+        ? path.join(base, 'iqgen_scripts', 'hpo_client.py')
+        : path.join(base, 'iqgen_scripts', 'hpo_client.py');
 
     // 명령어 및 인수 설정
     let command, args;
@@ -1004,7 +1135,7 @@ async function runHpoOnnx(baseLinePath, otherLinePath, event) {
         const { pythonExe } = getPaths();
         command = pythonExe;
     }
-    args = [scriptPath, baseLinePath, otherLinePath, '--root', path.join(base, 'python_scripts')];
+    args = [scriptPath, baseLinePath, otherLinePath, '--root', path.join(base, 'iqgen_scripts')];
 
     console.log('Starting HPO ONNX process:', command, args);
 
@@ -1128,7 +1259,7 @@ async function runPythonScript(options) {
     const { base } = getPaths();
 
     // Python 스크립트 경로 설정
-    const scriptPath = path.join(base, 'python_scripts', scriptName);
+    const scriptPath = path.join(base, 'iqgen_scripts', scriptName);
 
     // 명령어 및 인수 설정
     let command, scriptArgs;
@@ -1142,7 +1273,7 @@ async function runPythonScript(options) {
     }
 
     // 스크립트 인수 구성 - args 배열에 --root 인수 추가
-    scriptArgs = [scriptPath, ...args, '--root', path.join(base, 'python_scripts')];
+    scriptArgs = [scriptPath, ...args, '--root', path.join(base, 'iqgen_scripts')];
     console.log(`Running Python script: ${command} ${scriptArgs.join(' ')}`);
 
     // 환경 변수를 Promise 밖에서 미리 추출

@@ -12,6 +12,9 @@ import argparse
 import sys
 import json
 
+sys.path.append(os.path.dirname(os.path.abspath(__file__))) # windows 배포 시, 같은 경로 파일 import 위해 필요
+os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE" # windows 배포 시, ONNX 와 FAISS 의 OpenMP 충돌 우회를 위해 필요
+
 # 필요하다면 함께 사용
 from common import get_memory_bank_manager
 
@@ -450,18 +453,34 @@ class A:
         print(f"A_TEST 평균 점수: {mean_score_a}")
         a_test_max_score = a_test_max_score + self.gap
         
-        # A_TEST anomaly map을 바이너리 마스크로 변환하여 저장
+
+        # --- A_TEST anomaly map을 바이너리 마스크로 변환하여 저장 --- #
         for anom_map, img_path in a_test_anomaly_maps:
             # 원본 이미지 로드하여 크기 확인
             original_img = Image.open(img_path)
+            orig_width, orig_height = original_img.size
             
-            # 먼저 anomaly map을 bilinear 보간법으로 원본 이미지 크기로 확대
+            # anomaly map을 bilinear 보간법으로 crop된 영역 크기로 확대
+            # CENTER_CROP_RATE가 0.8이므로, anomaly map은 원본의 80% 크기에 해당
+            cropped_width = int(orig_width * CENTER_CROP_RATE)
+            cropped_height = int(orig_height * CENTER_CROP_RATE)
+            
             anom_map_img = Image.fromarray(anom_map)
-            anom_map_img = anom_map_img.resize((original_img.size[0], original_img.size[1]), Image.BILINEAR)
+            anom_map_img = anom_map_img.resize((cropped_width, cropped_height), Image.BILINEAR)
             anom_map_resized = np.array(anom_map_img)
             
             # 보간된 anomaly map에 대해 바이너리 마스크 생성: max 값보다 낮으면 0, 높거나 같으면 1
-            binary_mask = (anom_map_resized >= a_test_max_score).astype(np.uint8) * 255
+            binary_mask_cropped = (anom_map_resized >= a_test_max_score).astype(np.uint8) * 255
+            
+            # 패딩을 추가하여 원본 이미지 크기로 확장 (가장자리에 패딩 추가)
+            binary_mask = np.zeros((orig_height, orig_width), dtype=np.uint8)
+            
+            # 계산된 크롭 영역의 시작점
+            start_x = (orig_width - cropped_width) // 2
+            start_y = (orig_height - cropped_height) // 2
+            
+            # 크롭된 anomaly map을 원본 이미지 중앙에 배치
+            binary_mask[start_y:start_y+cropped_height, start_x:start_x+cropped_width] = binary_mask_cropped
             
             # 저장할 파일 경로 생성
             filename = os.path.basename(img_path)
@@ -489,18 +508,33 @@ class A:
         mean_score_b = float(np.mean(b_test_scores)) if b_test_scores else 0.0
         print(f"B_TEST 평균 점수: {mean_score_b}")
         
-        # B_TEST anomaly map을 바이너리 마스크로 변환하여 저장
+        # --- B_TEST anomaly map을 바이너리 마스크로 변환하여 저장 --- #
         for anom_map, img_path in b_test_anomaly_maps:
             # 원본 이미지 로드하여 크기 확인
             original_img = Image.open(img_path)
+            orig_width, orig_height = original_img.size
             
-            # 먼저 anomaly map을 bilinear 보간법으로 원본 이미지 크기로 확대
+            # anomaly map을 bilinear 보간법으로 crop된 영역 크기로 확대
+            # CENTER_CROP_RATE가 0.8이므로, anomaly map은 원본의 80% 크기에 해당
+            cropped_width = int(orig_width * CENTER_CROP_RATE)
+            cropped_height = int(orig_height * CENTER_CROP_RATE)
+            
             anom_map_img = Image.fromarray(anom_map)
-            anom_map_img = anom_map_img.resize((original_img.size[0], original_img.size[1]), Image.BILINEAR)
+            anom_map_img = anom_map_img.resize((cropped_width, cropped_height), Image.BILINEAR)
             anom_map_resized = np.array(anom_map_img)
             
             # 보간된 anomaly map에 대해 바이너리 마스크 생성: max 값보다 낮으면 0, 높거나 같으면 1
-            binary_mask = (anom_map_resized >= a_test_max_score).astype(np.uint8) * 255
+            binary_mask_cropped = (anom_map_resized >= a_test_max_score).astype(np.uint8) * 255
+            
+            # 패딩을 추가하여 원본 이미지 크기로 확장 (가장자리에 패딩 추가)
+            binary_mask = np.zeros((orig_height, orig_width), dtype=np.uint8)
+            
+            # 계산된 크롭 영역의 시작점
+            start_x = (orig_width - cropped_width) // 2
+            start_y = (orig_height - cropped_height) // 2
+            
+            # 크롭된 anomaly map을 원본 이미지 중앙에 배치
+            binary_mask[start_y:start_y+cropped_height, start_x:start_x+cropped_width] = binary_mask_cropped
             
             # 저장할 파일 경로 생성
             filename = os.path.basename(img_path)

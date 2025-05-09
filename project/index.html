@@ -212,6 +212,20 @@
     - 제거하면 해당 컨테이너는 자동으로 내용물에 따라 높이가 달라짐.
     -->
 
+    <!-- Custom Window Controls -->
+    <div id="titleBar"
+        style="height: 30px; background-color: #1e1e1e; -webkit-app-region: drag; display: flex; justify-content: space-between; align-items: center; padding: 0 10px;">
+        <div style="color: #e0e0e0; font-size: 14px;">Hyperparameter Optimizer</div>
+        <div style="-webkit-app-region: no-drag;">
+            <button id="minimizeBtn" class="btn btn-sm"
+                style="background: transparent; color: #e0e0e0; border: none; padding: 2px 8px;">&#9472;</button>
+            <button id="maximizeBtn" class="btn btn-sm"
+                style="background: transparent; color: #e0e0e0; border: none; padding: 2px 8px;">&#9723;</button>
+            <button id="closeBtn" class="btn btn-sm"
+                style="background: transparent; color: #e0e0e0; border: none; padding: 2px 8px;">&#10005;</button>
+        </div>
+    </div>
+
     <div class="container-fluid h-100">
         <!-- Bootstrap의 row로 수평 배치, 높이 100% -->
         <!-- 
@@ -839,6 +853,19 @@
         // 초기 로딩 시 config 불러오기
         window.addEventListener('DOMContentLoaded', async () => {
             await loadConfig();
+        });
+
+        // Window controls for custom title bar
+        document.getElementById('minimizeBtn').addEventListener('click', () => {
+            window.electronAPI.minimizeWindow();
+        });
+
+        document.getElementById('maximizeBtn').addEventListener('click', () => {
+            window.electronAPI.maximizeWindow();
+        });
+
+        document.getElementById('closeBtn').addEventListener('click', () => {
+            window.electronAPI.closeWindow();
         });
     </script>
 </body>

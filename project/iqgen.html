@@ -6,6 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>IQGen</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
     <style>
         body {
             font-family: sans-serif;
@@ -161,14 +162,14 @@
     <div class="container-fluid">
         <!-- System Description -->
         <div class="row mb-3">
-            <div class="col-6 text-center">
-                <h2>Image quality (IQ) 편차 완화 학습 시스템</h4>
-            </div>
-            <div class="col-6 text-end">
-                <button id="btnResetAll" class="btn btn-outline-danger">전체 초기화</button>
+            <div class="col-12 text-center">
+                <h2>Image quality (IQ) 편차 완화 학습 시스템</h2>
             </div>
             <div class="col-12 text-center">
                 <h5 style="color: #a0a0a0;">좌측부터 숫자 순서대로 진행하세요</h5>
+            </div>
+            <div class="col-12 text-end">
+                <button id="btnResetAll" class="btn btn-outline-danger">전체 초기화</button>
             </div>
         </div>
         <!-- Top Row: Steps with progress bars -->
@@ -642,7 +643,7 @@
         btnResetAll.addEventListener('click', async () => {
             try {
                 // 사용자 확인 메시지
-                const result = await window.electronAPI.showMessageBox({
+                const result = await showCustomConfirmDialog({
                     type: 'question',
                     title: '전체 초기화 확인',
                     message: '모든 데이터와 설정을 초기화하시겠습니까?\n이 작업은 되돌릴 수 없습니다.',
@@ -793,7 +794,7 @@
         });
 
         document.getElementById('btnStudyIdHelp').addEventListener('click', () => {
-            showHelpMessage('학습 진행 상황 확인 방법:\n\n1. 좌측의 Dashboard 탭을 클릭하면 학습 진행 상황을 확인할 수 있습니다.\n\n2. 현재 진행 중인 학습을 찾으려면:\n   - 이 화면의 Study ID를 복사하여 Dashboard에서 검색하거나\n   - Dashboard에서 최신순 정렬 시 맨 위에 표시되는 항목을 확인하세요.\n\n3. 학습 완료 시점:\n   - Dashboard에서 IQ편차가 더 이상 줄어들지 않을 때 학습을 중단해도 됩니다(보통 trial 100회 정도 필요합니다).\n   - 중단 버튼을 누른 후, 찾아낸 최적 파라미터로 최종 모델 배포를 진행하세요.\n\n4. 결과 해석:\n   - Dashboard의 History 그래프 값이 높을수록 두 라인 간 IQ편차가 작다는 의미입니다.');
+            showHelpMessage('학습 진행 상황 확인 방법:\n\n0. Study ID는 첫 trial 이 종료되면 결정됩니다. 잠시 기다려주세요.\n\n1. 좌측 Settings 탭에 brightness, contrast, saturation, hue 를 설정하고 save 해야 에러없이 진행됩니다.\n\n2. 좌측의 Dashboard 탭을 클릭하면 학습 진행 상황을 확인할 수 있습니다.\n\n3. 현재 진행 중인 학습을 찾으려면:\n   - 이 화면의 Study ID를 복사하여 Dashboard에서 검색하거나\n   - Dashboard에서 최신순 정렬 시 맨 위에 표시되는 항목을 확인하세요.\n\n4. 학습 완료 시점:\n   - Dashboard에서 IQ편차가 더 이상 줄어들지 않을 때 학습을 중단해도 됩니다(보통 trial 100회 정도 필요합니다).\n   - 중단 버튼을 누른 후, 찾아낸 최적 파라미터로 최종 모델 배포를 진행하세요.\n\n5. 결과 해석:\n   - Dashboard의 History 그래프 값이 높을수록 두 라인 간 IQ편차가 작다는 의미입니다.');
         });
 
         // Path selection handlers
@@ -940,7 +941,7 @@
                 console.log('초기화 버튼 클릭됨');
 
                 // 사용자 확인 메시지
-                const result = await window.electronAPI.showMessageBox({
+                const result = await showCustomConfirmDialog({
                     type: 'question',
                     title: '초기화 확인',
                     message: '최적 증강 학습을 초기화하시겠습니까?\n실행 중인 프로세스가 종료됩니다.',
@@ -995,7 +996,7 @@
                 }
 
                 // 사용자 확인 메시지
-                const result = await window.electronAPI.showMessageBox({
+                const result = await showCustomConfirmDialog({
                     type: 'question',
                     title: '중단 확인',
                     message: '최적 증강 학습을 중단하시겠습니까?\n현재까지의 최적 파라미터가 유지됩니다.',
@@ -1024,7 +1025,7 @@
                     // 상태 저장
                     saveCurrentState();
 
-                    showHelpMessage('최적화가 완료되었습니다. 최종 모델 배포를 클릭하세요.');
+                    showHelpMessage('최적화가 완료되었습니다. C,D 에 대한 anomaly map 생성 후, 최종 모델 배포를 클릭하세요.');
                 }
             } catch (error) {
                 console.error('Error during stop:', error);
@@ -1105,7 +1106,7 @@
                     return;
                 }
 
-                showHelpMessage('최적 증강 학습이 시작되었습니다. 이 과정은 시간이 걸릴 수 있습니다.');
+                showHelpMessage('최적 증강 학습이 시작되었습니다. 첫 trial 이 종료된 후에야 study_id 가 생성됩니다. 이 과정은 시간이 걸릴 수 있으니 기다려주세요.\n\n좌측 Settings 탭에 brightness, contrast, saturation, hue 를 설정하고 save 해야 에러없이 진행됩니다.')
 
             } catch (error) {
                 console.error('Error during augmentation:', error);
@@ -1131,13 +1132,41 @@
 
                 // Check if aligned anomaly maps exist
                 if (!alignedBaseLineAnomalyPath || !alignedOtherLineAnomalyPath) {
-                    showHelpMessage('C,D 의 Anomaly Maps가 필요합니다. 먼저 C,D 의 anomaly map 생성을 진행해주세요.');
+                    showHelpMessage(`정렬된 이미지의 Anomaly Maps가 필요합니다. "${btnGenerateAlignedAnomaly.textContent}" 버튼을 클릭하여 먼저 C,D의 anomaly map을 생성해주세요.`);
+
+                    // 버튼 강조 효과 추가
+                    btnGenerateAlignedAnomaly.classList.add('btn-danger');
+                    setTimeout(() => {
+                        btnGenerateAlignedAnomaly.classList.remove('btn-danger');
+                        btnGenerateAlignedAnomaly.classList.add('btn-warning');
+                    }, 2000);
+
                     return;
                 }
 
                 // Check if best parameters exist
                 if (!bestParams) {
                     showHelpMessage('최적 증강 파라미터가 필요합니다. 먼저 최적 증강 학습을 실행해주세요.');
+                    return;
+                }
+
+                // Check if required source files exist before proceeding
+                const requiredFiles = [
+                    'iqgen_scripts/memory_dist/nnscorer_search_index.faiss',
+                    'iqgen_scripts/models/model.onnx'
+                ];
+
+                const fileCheckResult = await window.electronAPI.checkFilesExist(requiredFiles);
+                if (!fileCheckResult.allExist) {
+                    showHelpMessage(`배포에 필요한 파일이 준비되지 않았습니다.\n\n먼저 "${btnGenerateAlignedAnomaly.textContent}" 버튼을 클릭하여 C,D의 anomaly map을 생성하고, 필요한 파일이 준비될 때까지 기다려주세요.`);
+
+                    // 버튼 강조 효과 추가
+                    btnGenerateAlignedAnomaly.classList.add('btn-danger');
+                    setTimeout(() => {
+                        btnGenerateAlignedAnomaly.classList.remove('btn-danger');
+                        btnGenerateAlignedAnomaly.classList.add('btn-warning');
+                    }, 2000);
+
                     return;
                 }
 
@@ -1155,8 +1184,8 @@
                     try {
                         // Copy required files to the selected path
                         const sourceFiles = [
-                            'project/python_scripts/memory_dist/nnscorer_search_index.faiss',
-                            'project/python_scripts/models/model.onnx'
+                            'iqgen_scripts/memory_dist/nnscorer_search_index.faiss',
+                            'iqgen_scripts/models/model.onnx'
                         ];
 
                         // Create a best_params.json file with the current best parameters
@@ -1353,18 +1382,209 @@
         }
 
         function showHelpMessage(message) {
-            try {
-                // Use parent window's message box
-                window.electronAPI.showMessageBox({
-                    type: 'info',
-                    title: '안내',
-                    message: message,
-                    buttons: ['확인']
+            // Create custom dark modal instead of using system dialog
+            const modalBackdrop = document.createElement('div');
+            modalBackdrop.style.position = 'fixed';
+            modalBackdrop.style.top = '0';
+            modalBackdrop.style.left = '0';
+            modalBackdrop.style.width = '100%';
+            modalBackdrop.style.height = '100%';
+            modalBackdrop.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+            modalBackdrop.style.display = 'flex';
+            modalBackdrop.style.justifyContent = 'center';
+            modalBackdrop.style.alignItems = 'center';
+            modalBackdrop.style.zIndex = '9999';
+
+            const modalContent = document.createElement('div');
+            modalContent.style.backgroundColor = '#2d2d2d';
+            modalContent.style.color = '#e0e0e0';
+            modalContent.style.padding = '25px';
+            modalContent.style.borderRadius = '8px';
+            modalContent.style.maxWidth = '80%';
+            modalContent.style.maxHeight = '80%';
+            modalContent.style.boxShadow = '0 0 20px rgba(0, 0, 0, 0.5)';
+            modalContent.style.overflowY = 'auto';
+            modalContent.style.border = '1px solid #555';
+
+            const messageText = document.createElement('div');
+            messageText.style.marginBottom = '20px';
+            messageText.style.lineHeight = '1.5';
+            messageText.style.fontSize = '14px';
+
+            // Handle line breaks in the message
+            message.split('\n').forEach(line => {
+                messageText.appendChild(document.createTextNode(line));
+                messageText.appendChild(document.createElement('br'));
+            });
+
+            const closeButton = document.createElement('button');
+            closeButton.textContent = '확인';
+            closeButton.className = 'btn btn-primary';
+            closeButton.style.float = 'right';
+            closeButton.style.minWidth = '80px';
+
+            closeButton.addEventListener('click', () => {
+                document.body.removeChild(modalBackdrop);
+            });
+
+            // Handle Escape key to close modal
+            const escKeyHandler = (e) => {
+                if (e.key === 'Escape') {
+                    document.body.removeChild(modalBackdrop);
+                    document.removeEventListener('keydown', escKeyHandler);
+                }
+            };
+            document.addEventListener('keydown', escKeyHandler);
+
+            modalContent.appendChild(messageText);
+            modalContent.appendChild(closeButton);
+            modalBackdrop.appendChild(modalContent);
+
+            document.body.appendChild(modalBackdrop);
+        }
+
+        // Custom confirmation dialog that returns a Promise
+        async function showCustomConfirmDialog(options) {
+            return new Promise((resolve) => {
+                const { type = 'question', title = '확인', message = '', buttons = ['취소', '확인'], defaultId = 1, cancelId = 0 } = options;
+
+                // Create custom dark modal
+                const modalBackdrop = document.createElement('div');
+                modalBackdrop.style.position = 'fixed';
+                modalBackdrop.style.top = '0';
+                modalBackdrop.style.left = '0';
+                modalBackdrop.style.width = '100%';
+                modalBackdrop.style.height = '100%';
+                modalBackdrop.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+                modalBackdrop.style.display = 'flex';
+                modalBackdrop.style.justifyContent = 'center';
+                modalBackdrop.style.alignItems = 'center';
+                modalBackdrop.style.zIndex = '9999';
+
+                const modalContent = document.createElement('div');
+                modalContent.style.backgroundColor = '#2d2d2d';
+                modalContent.style.color = '#e0e0e0';
+                modalContent.style.padding = '25px';
+                modalContent.style.borderRadius = '8px';
+                modalContent.style.width = '400px';
+                modalContent.style.maxWidth = '90%';
+                modalContent.style.boxShadow = '0 0 20px rgba(0, 0, 0, 0.5)';
+                modalContent.style.border = '1px solid #555';
+
+                // Add title if provided
+                if (title) {
+                    const titleElement = document.createElement('h5');
+                    titleElement.textContent = title;
+                    titleElement.style.marginBottom = '15px';
+                    titleElement.style.color = '#e0e0e0';
+                    modalContent.appendChild(titleElement);
+                }
+
+                // Add icon based on type
+                let iconHtml = '';
+                switch (type) {
+                    case 'question':
+                        iconHtml = '<i class="bi bi-question-circle" style="color: #0d6efd; margin-right: 10px;"></i>';
+                        break;
+                    case 'info':
+                        iconHtml = '<i class="bi bi-info-circle" style="color: #0dcaf0; margin-right: 10px;"></i>';
+                        break;
+                    case 'warning':
+                        iconHtml = '<i class="bi bi-exclamation-triangle" style="color: #ffc107; margin-right: 10px;"></i>';
+                        break;
+                    case 'error':
+                        iconHtml = '<i class="bi bi-x-circle" style="color: #dc3545; margin-right: 10px;"></i>';
+                        break;
+                }
+
+                const messageContainer = document.createElement('div');
+                messageContainer.style.marginBottom = '20px';
+                messageContainer.style.display = 'flex';
+                messageContainer.style.alignItems = 'flex-start';
+
+                const iconContainer = document.createElement('div');
+                iconContainer.innerHTML = iconHtml;
+                iconContainer.style.marginRight = '10px';
+                iconContainer.style.fontSize = '24px';
+                iconContainer.style.marginTop = '-3px';
+
+                const messageText = document.createElement('div');
+                messageText.style.lineHeight = '1.5';
+                messageText.style.fontSize = '14px';
+                messageText.style.flex = '1';
+
+                // Handle line breaks in the message
+                message.split('\n').forEach(line => {
+                    messageText.appendChild(document.createTextNode(line));
+                    messageText.appendChild(document.createElement('br'));
                 });
-            } catch (error) {
-                // Fallback to alert if parent messaging fails
-                alert(message);
-            }
+
+                // Remove the last <br> element
+                if (messageText.lastElementChild) {
+                    messageText.removeChild(messageText.lastElementChild);
+                }
+
+                if (iconHtml) messageContainer.appendChild(iconContainer);
+                messageContainer.appendChild(messageText);
+                modalContent.appendChild(messageContainer);
+
+                // Create button container
+                const buttonContainer = document.createElement('div');
+                buttonContainer.style.display = 'flex';
+                buttonContainer.style.justifyContent = 'flex-end';
+                buttonContainer.style.gap = '10px';
+
+                // Add buttons
+                buttons.forEach((buttonText, index) => {
+                    const button = document.createElement('button');
+                    button.textContent = buttonText;
+
+                    // Style buttons based on index and defaultId
+                    if (index === cancelId) {
+                        button.className = 'btn btn-outline-secondary';
+                    } else if (index === defaultId) {
+                        button.className = 'btn btn-primary';
+                        // Focus the default button
+                        setTimeout(() => button.focus(), 100);
+                    } else {
+                        button.className = 'btn btn-outline-primary';
+                    }
+
+                    button.style.minWidth = '80px';
+
+                    button.addEventListener('click', () => {
+                        document.body.removeChild(modalBackdrop);
+                        document.removeEventListener('keydown', keyHandler);
+                        resolve({ response: index }); // Return the button index like Electron's dialog
+                    });
+
+                    buttonContainer.appendChild(button);
+                });
+
+                modalContent.appendChild(buttonContainer);
+                modalBackdrop.appendChild(modalContent);
+
+                // Handle keyboard navigation and selection
+                const keyHandler = (e) => {
+                    if (e.key === 'Escape') {
+                        document.body.removeChild(modalBackdrop);
+                        document.removeEventListener('keydown', keyHandler);
+                        resolve({ response: cancelId }); // Return cancelId on Escape
+                    } else if (e.key === 'Enter') {
+                        // Find the focused element
+                        const focusedElement = document.activeElement;
+                        if (focusedElement && focusedElement.tagName === 'BUTTON' && buttonContainer.contains(focusedElement)) {
+                            focusedElement.click();
+                        } else {
+                            // If no button is focused, click the default button
+                            buttonContainer.children[defaultId]?.click();
+                        }
+                    }
+                };
+                document.addEventListener('keydown', keyHandler);
+
+                document.body.appendChild(modalBackdrop);
+            });
         }
 
         async function simulateProcess(processName) {
@@ -1413,7 +1633,7 @@
 
                 // Add --gap 1.0 parameter when generating aligned anomaly maps
                 if (isFinished) {
-                    scriptArgs.push('--gap', '1.0');
+                    scriptArgs.push('--gap', '2.0');
                 }
 
                 // Set up a direct progress listener for this specific execution

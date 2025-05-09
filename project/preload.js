@@ -8,11 +8,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getDashboardPreloadPath: () => ipcRenderer.invoke('get-dashboard-preload-path'),
     getIQGenPreloadPath: () => ipcRenderer.invoke('getIQGenPreloadPath'),
 
+    // Window control functions
+    minimizeWindow: () => ipcRenderer.send('window:minimize'),
+    maximizeWindow: () => ipcRenderer.send('window:maximize'),
+    closeWindow: () => ipcRenderer.send('window:close'),
+
     // File system and dialog operations
     openDirectoryDialog: (options) => ipcRenderer.invoke('dialog:openDirectory', options),
     showMessageBox: (options) => ipcRenderer.invoke('dialog:showMessageBox', options),
     readDirectory: (dirPath) => ipcRenderer.invoke('fs:readDirectory', dirPath),
     directoryExists: (dirPath) => ipcRenderer.invoke('fs:directoryExists', dirPath),
+    checkFilesExist: (filePaths) => ipcRenderer.invoke('fs:checkFilesExist', filePaths),
 
     // Model operations
     deployModel: (options) => {

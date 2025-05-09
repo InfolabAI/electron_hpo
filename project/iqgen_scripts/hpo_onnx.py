@@ -4,6 +4,10 @@ from torch.utils.data import DataLoader
 import numpy as np
 import os
 import argparse
+import sys
+
+sys.path.append(os.path.dirname(os.path.abspath(__file__))) # windows 배포 시, 같은 경로 파일 import 위해 필요
+os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE" # windows 배포 시, ONNX 와 FAISS 의 OpenMP 충돌 우회를 위해 필요
 
 # Import classes, constants and functions from dist_onnx
 from dist_onnx import (

@@ -11,6 +11,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // 디렉토리 존재 여부 확인
     directoryExists: (path) => ipcRenderer.invoke('fs:directoryExists', path),
 
+    // 파일 존재 여부 확인
+    checkFilesExist: (filePaths) => ipcRenderer.invoke('fs:checkFilesExist', filePaths),
+
     // 메시지 박스 표시
     showMessageBox: (options) => ipcRenderer.invoke('dialog:showMessageBox', options),
 
@@ -18,7 +21,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     processImages: (sourcePath, targetPath) => ipcRenderer.invoke('image:process', { sourcePath, targetPath }),
 
     // 모델 배포
-    deployModel: (sourcePath, targetPath) => ipcRenderer.invoke('model:deploy', { sourcePath, targetPath }),
+    deployModel: (options) => ipcRenderer.invoke('model:deploy', options),
 
     // Python 스크립트 실행 (dist_onnx.py 등)
     runPythonScript: (options) => ipcRenderer.invoke('python:run', options),

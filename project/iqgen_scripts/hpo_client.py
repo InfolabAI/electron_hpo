@@ -8,6 +8,10 @@ import sys
 import traceback
 import signal
 import os
+
+sys.path.append(os.path.dirname(os.path.abspath(__file__))) # windows 배포 시, 같은 경로 파일 import 위해 필요
+os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE" # windows 배포 시, ONNX 와 FAISS 의 OpenMP 충돌 우회를 위해 필요
+
 import atexit
 import multiprocessing as mp
 from multiprocessing import Process, Queue
@@ -298,14 +302,14 @@ def main():
     
     # 기존 매개변수 유지
     parser.add_argument("--server_url", type=str,
-                        default="http://10.164.4.103:8005", help="서버 URL")
+                        default="http://127.0.0.1:8005", help="서버 URL")
     parser.add_argument("--study_id", type=str, default=None,
                         help="Study ID (없으면 자동 생성)")
     parser.add_argument("--max_trials", type=int,
                         default=30000, help="수행할 최대 trial 수")
     # 멀티프로세싱 관련 매개변수 추가
     parser.add_argument("--num_processes", type=int,
-                        default=1, help="사용할 프로세스 수") # /home/hee/electron_project/project/python_scripts/memory/nnscorer_search_index.faiss 를 모두 공유하기 때문에 지금은 1개만 사용해야 함
+                        default=1, help="사용할 프로세스 수") # /home/hee/electron_project/project/iqgen_scripts/memory/nnscorer_search_index.faiss 를 모두 공유하기 때문에 지금은 1개만 사용해야 함
     args = parser.parse_args()
 
 
