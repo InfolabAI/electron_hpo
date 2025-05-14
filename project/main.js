@@ -7,7 +7,13 @@ const sevenBin = require('7zip-bin');
 const util = require('util');
 const exec = util.promisify(require('child_process').exec);
 const { pathToFileURL } = require('url');
+const events = require('events');
 
+// 최대 이벤트 리스너 수 증가 (기본값 10 → 20)
+events.EventEmitter.defaultMaxListeners = 20;
+
+// 전역 변수로 statusWindow 선언 (모듈에서 import 하더라도 같은 객체 참조)
+global.statusWindow = null;
 const { openStatusWindow, updateStatusWindow, closeStatusWindow } = require('./statusWindow.js');
 const { generateLicense, validateLicense } = require('./licenseManager.js');
 
@@ -39,7 +45,6 @@ function getPaths() {
         pyEnvDir,
         DevPyScripts,
         testLocalServerPy: path.join(pyScripts, 'tls.dll'),
-        testLocalServerExe: path.join(pyScripts, 'tls.exe'),
         pythonExe: path.join(pyEnvDir, 'python.exe'),
         jsonFiles: path.join(base, 'json_files'),
         forAddData
@@ -50,178 +55,423 @@ function getPaths() {
 async function ensurePythonEnv() {
     if (isDev) {
         console.log('[DEBUG] 개발 모드 → 압축 해제 스킵');
-        //return;
-    }
-
-    const { zipFile, pyEnvDir, testLocalServerPy, testLocalServerExe, pythonExe, forAddData } = getPaths();
-
-    // 이미 구성되어 있다면 종료
-    if (fs.existsSync(pyEnvDir) && fs.existsSync(testLocalServerExe) && !fs.existsSync(testLocalServerPy)) {
-        console.log('[INFO] Python env already set up');
         return;
     }
 
-    openStatusWindow('환경 초기화 중...');
+    const { zipFile, pyEnvDir, testLocalServerPy, pythonExe } = getPaths();
 
-    // 1) Python 압축 해제 - 7zip으로 교체
-    updateStatusWindow('Python 환경 구성 시작...');
-    try {
-        // 7-Zip 바이너리 경로 확인 - OS별 처리
-        let zipPath;
-        if (process.platform === 'linux') {
-            // Linux에서는 7za 경로를 직접 지정
-            zipPath = path.join(process.cwd(), 'node_modules/7zip-bin/linux/x64/7za');
-        } else if (process.platform === 'win32') {
-            // Windows에서는 7z.exe 경로를 직접 지정
-            zipPath = path.join(process.cwd(), 'node_modules/7zip-bin/win/x64/7z.exe');
-        } else if (process.platform === 'darwin') {
-            // macOS에서는 7za 경로를 직접 지정
-            zipPath = path.join(process.cwd(), 'node_modules/7zip-bin/mac/x64/7za');
+    // 환경 설정 상태 확인
+    const envExists = fs.existsSync(pyEnvDir);
+    const pyExists = fs.existsSync(testLocalServerPy);
+
+    // 이미 완전히 설정되어 있는 경우 (환경 존재 + Python 스크립트 존재)
+    if (envExists && pyExists) {
+        console.log('[INFO] Python environment already configured');
+        return;
+    }
+
+    // Python 환경 디렉토리가 없는 경우 압축 해제 필요
+    if (!envExists) {
+        console.log('[INFO] Python env not found');
+
+        // 상태창 초기화 (오류 방지를 위해 시작 시 상태창이 없는 경우 생성)
+        if (!global.statusWindow) {
+            openStatusWindow('환경 초기화 중...');
         } else {
-            // 기타 OS는 기본 path7 사용 시도
-            zipPath = sevenBin.path7;
+            updateStatusWindow('환경 초기화 중...');
         }
 
-        console.log(`[INFO] Using 7-Zip at: ${zipPath}`);
-        updateStatusWindow(`7-Zip 경로: ${zipPath}`);
+        // 1) Python 압축 해제 - 직접 7z 명령어 실행
+        updateStatusWindow('Python 환경 구성 중...');
+        try {
+            // 7-Zip 바이너리 경로 확인 - OS별 처리
+            let zipPath;
+            if (process.platform === 'linux') {
+                // Linux 환경
+                if (isDev) {
+                    // 개발 모드에서는 node_modules 내부 경로 사용
+                    zipPath = path.join(process.cwd(), 'node_modules/7zip-bin/linux/x64/7za');
+                } else {
+                    // 배포 모드에서는 리소스 내에 포함된 7za 사용
+                    zipPath = path.join(process.resourcesPath, '7zip', 'linux', 'x64', '7za');
+                }
+            } else if (process.platform === 'win32') {
+                // Windows 환경
+                if (isDev) {
+                    // 개발 모드에서는 node_modules 내부 경로 사용
+                    zipPath = path.join(process.cwd(), 'node_modules/7zip-bin/win/x64/7z.exe');
+                } else {
+                    // 배포 모드에서는 리소스 내에 포함된 7za.exe 사용
+                    zipPath = path.join(process.resourcesPath, '7zip', 'win', 'x64', '7za.exe');
+                    // 추가 대체 경로 설정 - 파일이 존재하지 않으면 app.asar 내부 검색
+                    if (!fs.existsSync(zipPath)) {
+                        const appPath = app.getAppPath();
+                        zipPath = path.join(path.dirname(appPath), '7zip', 'win', 'x64', '7za.exe');
+                    }
+                }
+            } else if (process.platform === 'darwin') {
+                // macOS 환경
+                if (isDev) {
+                    // 개발 모드에서는 node_modules 내부 경로 사용
+                    zipPath = path.join(process.cwd(), 'node_modules/7zip-bin/mac/x64/7za');
+                } else {
+                    // 배포 모드에서는 리소스 내에 포함된 7za 사용
+                    zipPath = path.join(process.resourcesPath, '7zip', 'mac', 'x64', '7za');
+                }
+            } else {
+                // 기타 OS는 path7 사용 시도 (개발 모드에서만 가능)
+                zipPath = sevenBin.path7;
+            }
 
-        if (!fs.existsSync(zipPath)) {
-            throw new Error(`7-Zip executable not found at: ${zipPath}`);
-        }
+            console.log(`[INFO] Using 7-Zip at: ${zipPath}`);
+            updateStatusWindow(`7-Zip 경로: ${zipPath}`);
 
-        // 7-Zip 실행
-        const extractStream = Seven.extract(zipFile, pyEnvDir, {
-            $bin: zipPath,
-            $progress: true
-        });
+            // 7z 실행 파일이 존재하는지 확인 (없으면 오류)
+            if (!fs.existsSync(zipPath)) {
+                // 추가 대체 검색 - resources 폴더 내 다른 위치 확인
+                const resourcesDir = process.resourcesPath;
+                let found = false;
 
-        // 진행 상황 표시
-        let lastPercentage = 0;
+                // resources 디렉토리가 있는지 먼저 확인
+                if (fs.existsSync(resourcesDir)) {
+                    console.log(`[INFO] Searching for 7z in: ${resourcesDir}`);
 
-        // 초기 상태창 설정
-        updateStatusWindow('압축 해제를 시작합니다...');
+                    // 첫 번째 대체 경로: resources 루트에 직접 복사한 경우
+                    const alternativePath1 = path.join(resourcesDir, '7z.exe');
+                    if (fs.existsSync(alternativePath1)) {
+                        zipPath = alternativePath1;
+                        found = true;
+                        console.log(`[INFO] Found 7z at alternative location: ${zipPath}`);
+                    }
 
-        extractStream.on('progress', (progress) => {
-            if (progress.percent !== undefined) {
-                const percentage = Math.round(progress.percent);
+                    // 두 번째 대체 경로: resources/7zip 폴더
+                    if (!found) {
+                        const alternativePath2 = path.join(resourcesDir, '7zip', '7z.exe');
+                        if (fs.existsSync(alternativePath2)) {
+                            zipPath = alternativePath2;
+                            found = true;
+                            console.log(`[INFO] Found 7z at alternative location: ${zipPath}`);
+                        }
+                    }
+                }
 
-                // 이전 백분율과 같으면 업데이트하지 않음 (너무 자주 업데이트되는 것 방지)
-                if (percentage === lastPercentage && percentage !== 100) return;
-                lastPercentage = percentage;
+                // 여전히 찾지 못했다면 오류 발생
+                if (!found) {
+                    throw new Error(`7-Zip executable not found at: ${zipPath}. Please ensure 7z.exe is included in the resources folder.`);
+                }
+            }
+
+            // 압축 풀기 경로가 없으면 생성
+            fs.mkdirSync(pyEnvDir, { recursive: true });
+            updateStatusWindow('압축 해제를 시작합니다...');
+
+            // 압축 파일 크기 확인
+            const zipStat = fs.statSync(zipFile);
+            const zipSizeInMB = zipStat.size / (1024 * 1024);
+            console.log(`[INFO] Zip file size: ${zipSizeInMB.toFixed(2)} MB`);
+
+            // 시작 시간 기록
+            const startTime = Date.now();
+
+            // node-7z 대신 직접 7z 명령어 실행하여 폴더 구조 유지
+            const { spawn } = require('child_process');
+
+            // 명령어 구성 (OS에 따라 달라짐)
+            const args = ['x', zipFile, `-o${pyEnvDir}`, '-y', '-bsp1'];  // -bsp1 옵션 추가: 진행 상황 표시 활성화
+            console.log(`[INFO] Executing command: ${zipPath} ${args.join(' ')}`);
+            updateStatusWindow(`7z 명령어 실행: ${zipPath} ${args.join(' ')}`);
+
+            // 프로세스 생성 및 실행
+            const extractProcess = spawn(zipPath, args);
+
+            // 파일 추출 카운트
+            let extractedFiles = 0;
+            let totalFiles = 0;
+
+            // 진행 상황 업데이트를 위한 타이머 설정
+            const updateInterval = 500; // 0.5초마다 업데이트
+            let lastUpdate = 0;
+            let manualProgressTimer = null;
+
+            // 수동 진행률 업데이트 함수
+            const updateManualProgress = () => {
+                const elapsedTime = Date.now() - startTime;
+                const elapsedSec = elapsedTime / 1000;
+
+                // 시간 기반 진행률 추정 (최대 99%)
+                // 압축 해제 예상 소요 시간 기반 (약 2GB 압축 파일 = 약 3분)
+                const estimatedTotalTime = zipSizeInMB * 0.09; // 예상 시간(초) = 파일 크기(MB) * 계수
+                let timeBasedPercentage = Math.min(Math.floor((elapsedSec / estimatedTotalTime) * 100), 99);
+
+                // 추출된 파일 기반 진행률 (만약 totalFiles이 알려진 경우)
+                let fileBasedPercentage = 0;
+                if (totalFiles > 0) {
+                    fileBasedPercentage = Math.min(Math.floor((extractedFiles / totalFiles) * 100), 99);
+                }
+
+                // 두 진행률 중 큰 값 사용
+                const progressPercentage = Math.max(timeBasedPercentage, fileBasedPercentage);
 
                 // 프로그레스 바 생성 (30칸 길이)
                 const barLength = 30;
-                const completeLength = Math.floor(percentage / 100 * barLength);
+                const completeLength = Math.floor(progressPercentage / 100 * barLength);
                 const remainingLength = barLength - completeLength;
                 const bar = '█'.repeat(completeLength) + '░'.repeat(remainingLength);
 
-                // 프로그레스 바와 함께 진행률 표시 (줄바꿈 없이 같은 라인 업데이트)
-                process.stdout.write(`\r[INFO] 압축 해제 진행률: [${bar}] ${percentage}%`);
+                // 콘솔에 프로그레스 바 표시
+                process.stdout.write(`\r[INFO] 압축 해제 진행률(추정): [${bar}] ${progressPercentage}% (${extractedFiles}/${totalFiles || '?'} 파일, ${elapsedSec.toFixed(1)}초)`);
 
-                // 상태창에 진행률 전달 (객체 형태)
+                // 상태창에 진행 상황 표시
                 updateStatusWindow({
-                    progress: percentage,
-                    message: percentage === 100 ? '압축 해제 완료됨' : `압축 해제 진행 중: ${percentage}%`
+                    progress: progressPercentage,
+                    message: `압축 해제 진행 중: ${progressPercentage}% (${extractedFiles}/${totalFiles || '?'} 파일)`
                 });
+            };
 
-                // 100%일 때 줄바꿈 추가
-                if (percentage === 100) {
-                    process.stdout.write('\n');
+            // 주기적으로 진행률 업데이트
+            manualProgressTimer = setInterval(updateManualProgress, updateInterval);
+
+            // 압축 해제 진행 상황 처리
+            extractProcess.stdout.on('data', (data) => {
+                const output = data.toString().trim();
+
+                // - "Extracting  xxxx.dll" 형식으로 출력되므로, 파일 카운트하기
+                if (output.includes('Extracting')) {
+                    extractedFiles++;
+
+                    // 줄바꿈 문자로 분리하고 각 라인이 파일 추출을 나타내는지 확인
+                    const lines = output.split('\n');
+                    for (const line of lines) {
+                        if (line.trim().startsWith('Extracting')) {
+                            extractedFiles++;
+                        }
+                    }
                 }
-            }
-        });
 
-        // 압축 해제 완료 대기
-        await new Promise((resolve, reject) => {
-            extractStream.on('end', () => {
-                console.log('\n[INFO] Python 환경 압축 해제 완료');
+                // 전체 파일 수를 찾기 위한 패턴: "x files"
+                const filesMatch = output.match(/(\d+)\s+files/i);
+                if (filesMatch && filesMatch[1]) {
+                    totalFiles = parseInt(filesMatch[1], 10);
+                    console.log(`[INFO] 압축 파일 내 총 파일 수: ${totalFiles}`);
+                }
+
+                // 백분율 직접 파싱 시도 - "xx%" 형태로 출력되는 경우가 있는지 확인
+                const percentMatch = output.match(/(\d+)%/);
+                if (percentMatch && percentMatch[1]) {
+                    const percentage = parseInt(percentMatch[1], 10);
+                    if (!isNaN(percentage)) {
+                        // 프로그레스 바 생성 (30칸 길이)
+                        const barLength = 30;
+                        const completeLength = Math.floor(percentage / 100 * barLength);
+                        const remainingLength = barLength - completeLength;
+                        const bar = '█'.repeat(completeLength) + '░'.repeat(remainingLength);
+
+                        // 콘솔에 프로그레스 바 표시
+                        process.stdout.write(`\r[INFO] 압축 해제 진행률: [${bar}] ${percentage}%`);
+
+                        // 상태창에 진행 상황 표시
+                        updateStatusWindow({
+                            progress: percentage,
+                            message: `압축 해제 진행 중: ${percentage}%`
+                        });
+                    }
+                }
+
+                // 디버깅을 위해 모든 출력 로깅
+                if (output) {
+                    console.log(`[7z] ${output}`);
+                }
+            });
+
+            // 에러 출력 처리
+            extractProcess.stderr.on('data', (data) => {
+                const errorMsg = data.toString().trim();
+                console.error(`[7z Error] ${errorMsg}`);
                 updateStatusWindow({
-                    progress: 100,
-                    message: '압축 해제가 성공적으로 완료되었습니다.'
+                    message: `압축 해제 오류: ${errorMsg}`
                 });
-                resolve();
             });
 
-            extractStream.on('error', (err) => {
-                console.error('\n[ERROR] 압축 해제 실패:', err);
-                // 오류 발생 시 상태창 업데이트
-                statusWindow.webContents.executeJavaScript(`
-                    document.getElementById('statusText').textContent = '압축 해제 실패: ${err.message.replace(/'/g, "\\'")}';
-                    document.getElementById('statusText').classList.add('error');
-                `).catch(console.error);
-                reject(err);
+            // 압축 해제 완료 처리
+            await new Promise((resolve, reject) => {
+                extractProcess.on('close', (code) => {
+                    // 타이머 중지
+                    if (manualProgressTimer) {
+                        clearInterval(manualProgressTimer);
+                        manualProgressTimer = null;
+                    }
+
+                    if (code === 0) {
+                        console.log('\n[INFO] Python 환경 압축 해제 완료');
+                        process.stdout.write('\n');
+
+                        // 소요 시간 계산
+                        const elapsedTime = (Date.now() - startTime) / 1000;
+                        console.log(`[INFO] 압축 해제 소요 시간: ${elapsedTime.toFixed(2)}초`);
+
+                        updateStatusWindow({
+                            progress: 100,
+                            message: `압축 해제 완료! (${elapsedTime.toFixed(1)}초 소요)`
+                        });
+
+                        // 해제 후 폴더 구조 정리 - 필요한 경우 폴더 구조 수정
+                        fixFolderStructureIfNeeded(pyEnvDir);
+
+                        resolve();
+                    } else {
+                        const errMsg = `7-Zip process exited with code ${code}`;
+                        console.error(`[ERROR] ${errMsg}`);
+
+                        updateStatusWindow({
+                            progress: 100,
+                            message: `압축 해제 실패: 프로세스 종료 코드 ${code}`
+                        });
+
+                        // 오류 발생 시 상태창 업데이트
+                        if (global.statusWindow) {
+                            global.statusWindow.webContents.executeJavaScript(`
+                            document.getElementById('statusText').textContent = '압축 해제 실패: 프로세스 종료 코드 ${code}';
+                            document.getElementById('statusText').classList.add('error');
+                        `).catch(console.error);
+                        }
+
+                        reject(new Error(errMsg));
+                    }
+                });
+
+                extractProcess.on('error', (err) => {
+                    // 타이머 중지
+                    if (manualProgressTimer) {
+                        clearInterval(manualProgressTimer);
+                        manualProgressTimer = null;
+                    }
+
+                    console.error(`[ERROR] 압축 해제 실패: ${err}`);
+
+                    updateStatusWindow({
+                        progress: 100,
+                        message: `압축 해제 실패: ${err.message}`
+                    });
+
+                    // 오류 발생 시 상태창 업데이트
+                    if (global.statusWindow) {
+                        global.statusWindow.webContents.executeJavaScript(`
+                        document.getElementById('statusText').textContent = '압축 해제 실패: ${err.message.replace(/'/g, "\\'")}';
+                        document.getElementById('statusText').classList.add('error');
+                    `).catch(console.error);
+                    }
+
+                    reject(err);
+                });
             });
-        });
-    } catch (err) {
-        console.error('[ERROR] Decompression failed:', err.message);
-        updateStatusWindow({
-            progress: 100,
-            message: `압축 해제 실패: ${err.message}`
-        });
 
-        // 오류 발생 시 상태창 업데이트
-        statusWindow.webContents.executeJavaScript(`
-            document.getElementById('statusText').classList.add('error');
-        `).catch(console.error);
+        } catch (err) {
+            console.error('[ERROR] Decompression failed:', err.message);
+            updateStatusWindow({
+                progress: 100,
+                message: `압축 해제 실패: ${err.message}`
+            });
+
+            // 오류 발생 시 상태창 업데이트
+            if (global.statusWindow) {
+                global.statusWindow.webContents.executeJavaScript(`
+                document.getElementById('statusText').classList.add('error');
+            `).catch(console.error);
+            }
+
+            // 압축 해제 실패 시 앱 종료
+            console.log('[ERROR] Setup failed → App quits in 10 seconds');
+            setTimeout(() => { closeStatusWindow(); app.quit(); }, 10000);
+            return;
+        }
     }
 
-    // 2) PyInstaller 빌드
-    updateStatusWindow({
-        progress: 0,
-        message: 'PyInstaller 빌드 시작...'
-    });
+    // 최종 검증
+    const finalEnvExists = fs.existsSync(pyEnvDir);
+    const finalPyExists = fs.existsSync(testLocalServerPy);
 
-    try {
-        // 작업 디렉토리를 testLocalServerPy가 있는 디렉토리로 설정
-        const workingDirectory = path.dirname(testLocalServerPy);
-
-        // 빌드 진행 중임을 표시
-        updateStatusWindow({
-            progress: 50,
-            message: 'PyInstaller로 파이썬 스크립트를 EXE로 변환 중...'
-        });
-
-        await exec(
-            `"${pythonExe}" -m PyInstaller --add-data "${forAddData}" --onefile --console --distpath "${path.dirname(testLocalServerExe)}" "${testLocalServerPy}"`,
-            { cwd: workingDirectory }
-        );
-
-        fs.unlinkSync(testLocalServerPy); // 빌드 후 사용했던 스크립트 제거
-
-        // 빌드 완료
-        updateStatusWindow({
-            progress: 100,
-            message: '빌드 및 정리 완료!'
-        });
-
-        console.log('[INFO] Build & cleanup finished');
-
-        // 완료 후 잠시 대기
-        setTimeout(() => {
-            closeStatusWindow();
-        }, 3000);
-    } catch (err) {
-        updateStatusWindow({
-            progress: 100,
-            message: `빌드 실패: ${err.message}`
-        });
-
-        // 오류 발생 시 상태창 업데이트
-        statusWindow.webContents.executeJavaScript(`
-            document.getElementById('statusText').classList.add('error');
-        `).catch(console.error);
-
-        console.error('[ERROR] Build failed');
-        console.error(err);
-    }
-
-    // 3) 최종 확인
-    if (fs.existsSync(pyEnvDir) && fs.existsSync(testLocalServerExe) && !fs.existsSync(testLocalServerPy)) {
-        log('[INFO] Closing window in 10 seconds');
-        setTimeout(closeStatusWindow, 10000);
+    if (finalEnvExists && finalPyExists) {
+        console.log('[INFO] Python environment setup completed');
+        // 이미 표시되고 있는 상태창이 있으면 닫기
+        if (global.statusWindow) {
+            console.log('[INFO] Closing status window in 5 seconds');
+            setTimeout(closeStatusWindow, 5000);
+        }
     } else {
-        log('[ERROR] Setup failed → App quits in 10 seconds');
+        console.log('[ERROR] Setup incomplete - required components missing');
+        updateStatusWindow({
+            progress: 100,
+            message: `설정 실패: 필요한 구성 요소가 없습니다.`
+        });
+        console.log('[ERROR] Setup failed → App quits in 10 seconds');
         setTimeout(() => { closeStatusWindow(); app.quit(); }, 10000);
+    }
+}
+
+// 폴더 구조 수정 - 필요한 경우
+function fixFolderStructureIfNeeded(extractToPath) {
+    try {
+        const items = fs.readdirSync(extractToPath);
+
+        // 압축이 풀렸을 때 단일 폴더가 생겼고 그 안에 실제 내용물이 들어있는 경우
+        // 예: py_env/python/ -> py_env/
+        if (items.length === 1) {
+            const singleItem = items[0];
+            const singleItemPath = path.join(extractToPath, singleItem);
+
+            // 단일 항목이 디렉토리인 경우
+            if (fs.statSync(singleItemPath).isDirectory()) {
+                console.log(`[INFO] 발견된 단일 폴더 '${singleItem}'의 내용을 상위로 이동합니다.`);
+
+                // 내부 항목을 하나씩 상위로 이동
+                const innerItems = fs.readdirSync(singleItemPath);
+                for (const innerItem of innerItems) {
+                    const srcPath = path.join(singleItemPath, innerItem);
+                    const destPath = path.join(extractToPath, innerItem);
+
+                    // 이미 존재하면 덮어쓰기 위해 삭제
+                    if (fs.existsSync(destPath)) {
+                        if (fs.statSync(destPath).isDirectory()) {
+                            fs.rmSync(destPath, { recursive: true, force: true });
+                        } else {
+                            fs.unlinkSync(destPath);
+                        }
+                    }
+
+                    // 이동
+                    if (fs.statSync(srcPath).isDirectory()) {
+                        // 디렉토리 복사 함수 (재귀적으로 복사)
+                        copyDir(srcPath, destPath);
+                    } else {
+                        fs.copyFileSync(srcPath, destPath);
+                    }
+                    console.log(`  이동: ${innerItem}`);
+                }
+
+                // 원래 단일 폴더 삭제
+                fs.rmSync(singleItemPath, { recursive: true, force: true });
+                console.log(`[INFO] 폴더 구조 정리 완료`);
+            }
+        }
+    } catch (err) {
+        console.error(`[ERROR] 폴더 구조 정리 실패: ${err.message}`);
+    }
+}
+
+// 디렉토리 복사 함수 (재귀적으로 복사)
+function copyDir(src, dest) {
+    fs.mkdirSync(dest, { recursive: true });
+    const entries = fs.readdirSync(src, { withFileTypes: true });
+
+    for (let entry of entries) {
+        const srcPath = path.join(src, entry.name);
+        const destPath = path.join(dest, entry.name);
+
+        if (entry.isDirectory()) {
+            copyDir(srcPath, destPath);
+        } else {
+            fs.copyFileSync(srcPath, destPath);
+        }
     }
 }
 
@@ -275,21 +525,21 @@ async function startLocalServer() {
     // 프로세스 종료 후 추가 안전 대기 시간 (ms)
     await new Promise(resolve => setTimeout(resolve, 1000));
 
-    const { DevPyScripts, testLocalServerExe, base } = getPaths();
+    const { DevPyScripts, testLocalServerPy, base, pythonExe } = getPaths();
     let command, args;
 
     if (isDev) {
-        // 개발 모드 - Python 스크립트 직접 실행
+        // 개발 모드 - 시스템 Python으로 스크립트 직접 실행
         command = 'python';
         args = [DevPyScripts, '--root', __dirname];
     } else {
-        // 배포 모드 - EXE 파일 실행
-        command = testLocalServerExe;
-        args = ['--root', base];
+        // 배포 모드 - 내장 Python으로 tls.dll(Python 스크립트) 실행
+        command = pythonExe;
+        args = [testLocalServerPy, '--root', base];
 
-        // 실행 파일 존재 여부 확인
-        if (!fs.existsSync(command)) {
-            console.error(`[ERROR] Server executable not found at: ${command}`);
+        // Python 스크립트 존재 여부 확인
+        if (!fs.existsSync(testLocalServerPy)) {
+            console.error(`[ERROR] Server script not found at: ${testLocalServerPy}`);
             return false;
         }
     }
@@ -303,7 +553,7 @@ async function startLocalServer() {
         // 실행 옵션 설정
         const options = {
             env,
-            cwd: path.dirname(command), // 실행 파일이 있는 디렉토리로 변경
+            cwd: path.dirname(command), // Python 실행 파일이 있는 디렉토리로 변경
             windowsHide: true,
             stdio: 'pipe'
         };
@@ -653,7 +903,7 @@ async function runXFeatAligner(baseLinePath, otherLinePath, event) {
         alignmentProcess = null;
     }
 
-    const { base, pyScripts, pythonExe } = getPaths();
+    const { base } = getPaths();
     const alignerScript = path.join(base, 'iqgen_scripts', 'xfeat_aligner.py');
 
     // 명령어 및 인수 설정
@@ -663,6 +913,7 @@ async function runXFeatAligner(baseLinePath, otherLinePath, event) {
         command = 'python';
     } else {
         // 배포 모드
+        const { pythonExe } = getPaths();
         command = pythonExe;
     }
     args = [alignerScript, baseLinePath, otherLinePath, '--root', path.join(base, 'iqgen_scripts')];
@@ -726,7 +977,7 @@ async function runXFeatAligner(baseLinePath, otherLinePath, event) {
         // error
         alignmentProcess.on('error', (err) => {
             console.error('[xfeat-aligner] failed to start:', err);
-            if (event && event.sender) {
+            if (event && event.sender && !event.sender.isDestroyed()) {
                 event.sender.send('alignment:complete', {
                     success: false,
                     error: err.message
@@ -737,7 +988,7 @@ async function runXFeatAligner(baseLinePath, otherLinePath, event) {
         return true;
     } catch (err) {
         console.error('[ERROR] Failed to start XFeat aligner:', err);
-        if (event && event.sender) {
+        if (event && event.sender && !event.sender.isDestroyed()) {
             event.sender.send('alignment:complete', {
                 success: false,
                 error: err.message
@@ -822,16 +1073,35 @@ async function kill_pyhpo() {
         killPromises.push(Promise.race([killPromise, timeoutPromise]));
     }
 
-    // 2. 외부 실행 중인 tls.exe 프로세스 종료
+    // 2. 외부 실행 중인 Python 프로세스 종료 (tls.dll을 실행 중인 프로세스)
     try {
-        // taskkill 명령이 완료될 때까지 대기
-        const { stdout, stderr } = await exec('taskkill /F /IM tls.exe');
-        console.log('[INFO] taskkill result:', stdout);
-        if (stderr) console.error('[INFO] taskkill stderr:', stderr);
+        if (process.platform === 'win32') {
+            // Windows의 경우 - taskkill 명령으로 Python 프로세스 중 tls.dll 관련 종료
+            const { stdout, stderr } = await exec('taskkill /F /IM python.exe /FI "WINDOWTITLE eq *tls.dll*"');
+            console.log('[INFO] Python process kill result:', stdout);
+            if (stderr) console.error('[INFO] Python process kill stderr:', stderr);
+
+            // 추가로 이름에 tls가 포함된 프로세스도 종료
+            try {
+                await exec('taskkill /F /FI "IMAGENAME eq python.exe" /FI "WINDOWTITLE eq *tls*"');
+            } catch (err) {
+                // 프로세스가 없는 경우 무시
+            }
+        } else {
+            // Linux/Mac의 경우 - pkill 명령 사용
+            try {
+                // tls.dll 문자열을 포함하는 Python 프로세스 종료
+                await exec("pkill -9 -f 'python.*tls.dll'");
+                console.log('[INFO] Successfully killed Python processes running tls.dll');
+            } catch (pkillError) {
+                // 프로세스가 없는 경우 에러가 발생하지만 무시해도 됨
+                console.log('[INFO] No Python processes running tls.dll found to kill');
+            }
+        }
     } catch (error) {
         // 프로세스가 없는 경우에도 에러가 발생하지만 무시해도 됨
-        if (error.message.includes('not found')) {
-            console.log('[INFO] No tls.exe process found to kill');
+        if (error.message.includes('not found') || error.message.includes('no process found')) {
+            console.log('[INFO] No Python processes running tls.dll found to kill');
         } else {
             console.error('[ERROR] kill process:', error.message);
         }
@@ -1502,3 +1772,15 @@ async function runPythonScript(options) {
         }
     });
 }
+
+/** Python 스크립트 실행 핸들러 */
+ipcMain.handle('python:run', async (event, options) => {
+    try {
+        // 이벤트 객체 전달하여 진행 상황을 해당 윈도우로 직접 전송할 수 있도록 함
+        options.event = event;
+        return await runPythonScript(options);
+    } catch (error) {
+        console.error('[ERROR] python:run handler error:', error);
+        return { success: false, error: error.message };
+    }
+});

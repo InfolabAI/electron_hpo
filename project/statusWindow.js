@@ -1,23 +1,22 @@
 // statusWindow.js
 const { BrowserWindow } = require('electron');
 
-let statusWindow = null;
-
 /**
  * 새 창을 열고, 초기 HTML 문자열을 로드
  * 이미 열려 있으면 일단 닫고 다시 엽니다(필요에 따라 변경 가능).
  */
 function openStatusWindow(content) {
     // 이미 열려 있다면 닫는다
-    if (statusWindow) {
-        statusWindow.close();
-        statusWindow = null;
+    if (global.statusWindow) {
+        global.statusWindow.close();
+        global.statusWindow = null;
     }
 
-    statusWindow = new BrowserWindow({
+    global.statusWindow = new BrowserWindow({
         width: 500,
         height: 350,
         title: '진행 상태',
+        frame: false,
         // 필요 시 webPreferences 설정
         webPreferences: {
             nodeIntegration: false,
@@ -25,7 +24,7 @@ function openStatusWindow(content) {
         },
     });
 
-    statusWindow.setMenu(null);
+    global.statusWindow.setMenu(null);
 
     // 기본 HTML 템플릿 - 스타일과 컨테이너 포함
     const htmlTemplate = `
@@ -127,14 +126,14 @@ function openStatusWindow(content) {
     `;
 
     // data URL 방식으로 HTML 문자열 직접 로드
-    statusWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(htmlTemplate)}`);
+    global.statusWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(htmlTemplate)}`);
 
     // 창이 닫힐 때 참조 해제 (원하지 않으면 생략 가능)
-    statusWindow.on('closed', () => {
-        statusWindow = null;
+    global.statusWindow.on('closed', () => {
+        global.statusWindow = null;
     });
 
-    return statusWindow;
+    return global.statusWindow;
 }
 
 /**
@@ -142,7 +141,7 @@ function openStatusWindow(content) {
  * @param {string|object} data - 문자열 메시지 또는 {progress: 숫자, message: 문자열} 형태의 객체
  */
 function updateStatusWindow(data) {
-    if (!statusWindow) return;
+    if (!global.statusWindow) return;
 
     try {
         // 데이터 타입 확인 (문자열 또는 객체)
@@ -153,7 +152,7 @@ function updateStatusWindow(data) {
                 .replace(/'/g, "\\'")
                 .replace(/"/g, '\\"');
 
-            statusWindow.webContents.executeJavaScript(`
+            global.statusWindow.webContents.executeJavaScript(`
                 const logEntry = document.createElement('div');
                 logEntry.className = 'log-entry';
                 logEntry.textContent = '${escapedContent}';
@@ -170,7 +169,7 @@ function updateStatusWindow(data) {
             const statusText = data.message || `압축 해제 진행률: ${progress}%`;
 
             // 진행률과 메시지 업데이트
-            statusWindow.webContents.executeJavaScript(`
+            global.statusWindow.webContents.executeJavaScript(`
                 document.getElementById('progressFill').style.width = '${progress}%';
                 document.getElementById('progressText').textContent = '${progress}%';
                 document.getElementById('statusText').textContent = '${statusText}';
@@ -190,7 +189,7 @@ function updateStatusWindow(data) {
                     .replace(/'/g, "\\'")
                     .replace(/"/g, '\\"');
 
-                statusWindow.webContents.executeJavaScript(`
+                global.statusWindow.webContents.executeJavaScript(`
                     const logEntry = document.createElement('div');
                     logEntry.className = 'log-entry';
                     logEntry.textContent = '${escapedMessage}';
@@ -210,9 +209,9 @@ function updateStatusWindow(data) {
  * 상태 창을 직접 닫기
  */
 function closeStatusWindow() {
-    if (statusWindow) {
-        statusWindow.close();
-        statusWindow = null;
+    if (global.statusWindow) {
+        global.statusWindow.close();
+        global.statusWindow = null;
     }
 }
 
